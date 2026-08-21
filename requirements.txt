@@ -1,0 +1,8 @@
+# Install with: .venv\Scripts\python.exe -m pip install -r requirements.txt
+jupyter==1.1.1
+ipykernel==7.3.0
+pandas==3.0.5
+numpy==2.4.6
+scikit-learn==1.9.0
+matplotlib==3.11.1
+seaborn==0.13.2
