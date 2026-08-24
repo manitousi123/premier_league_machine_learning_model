@@ -1,0 +1,603 @@
+<title>PLEA and the Match Call</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --paper:#F1F4F8; --surface:#FFFFFF; --surface-2:#E6EBF2;
+    --ink:#141A25; --muted:#5A6577; --line:#D2D9E4; --line-strong:#B4BECD;
+    --accent:#B4741A; --accent-soft:#FAF0DC;
+    --teal:#1F6A67; --teal-soft:#DCEBE9;
+    --flag:#9C3527; --flag-soft:#FAE6E2;
+    --shadow:0 1px 2px rgba(20,26,37,.05), 0 8px 24px -16px rgba(20,26,37,.25);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0D1118; --surface:#161C26; --surface-2:#1E2632;
+      --ink:#E5EAF2; --muted:#939EB1; --line:#2A3441; --line-strong:#3C4959;
+      --accent:#E4A44B; --accent-soft:#2C2314;
+      --teal:#5CBCB5; --teal-soft:#11292A;
+      --flag:#E1857A; --flag-soft:#2E1A18;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0D1118; --surface:#161C26; --surface-2:#1E2632;
+    --ink:#E5EAF2; --muted:#939EB1; --line:#2A3441; --line-strong:#3C4959;
+    --accent:#E4A44B; --accent-soft:#2C2314;
+    --teal:#5CBCB5; --teal-soft:#11292A;
+    --flag:#E1857A; --flag-soft:#2E1A18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:"Public Sans","Helvetica Neue",Arial,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:56px 24px 96px;display:flex;flex-direction:column;gap:44px;}
+
+  header{display:flex;flex-direction:column;gap:14px;}
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:600;
+  }
+  h1{
+    font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+    font-weight:700;font-size:clamp(34px,6vw,52px);
+    line-height:1.03;letter-spacing:-.025em;margin:0;text-wrap:balance;
+  }
+  .standfirst{font-size:18px;color:var(--muted);max-width:62ch;margin:0;}
+
+  .stats{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;
+  }
+  .stat{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:2px;}
+  .stat .n{
+    font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+    font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  }
+  .stat .l{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  }
+  @media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr);}}
+
+  .callout{border:1px solid var(--line);border-radius:4px;padding:16px 20px;display:flex;flex-direction:column;gap:6px;}
+  .callout.warn{background:var(--flag-soft);border-left:3px solid var(--flag);}
+  .callout.warn .tag{color:var(--flag);}
+  .callout.note{background:var(--surface);border-left:3px solid var(--line-strong);}
+  .callout.note .tag{color:var(--muted);}
+  .callout.big{background:var(--accent-soft);border-left:3px solid var(--accent);}
+  .callout.big .tag{color:var(--accent);}
+  .callout .tag{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;
+  }
+  .callout p{margin:0;font-size:15px;max-width:70ch;}
+  .callout p + p{margin-top:6px;}
+
+  .rule{
+    display:flex;align-items:center;gap:14px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  }
+  .rule::after{content:"";height:1px;flex:1;background:var(--line);}
+
+  .flow{display:flex;flex-direction:column;}
+  .stage{display:grid;grid-template-columns:52px 1fr;gap:0 20px;position:relative;padding-bottom:34px;}
+  .stage:last-child{padding-bottom:0;}
+  .stage::before{content:"";position:absolute;left:25px;top:44px;bottom:0;width:2px;background:var(--line-strong);}
+  .stage:last-child::before{display:none;}
+  .marker{
+    width:52px;height:44px;border-radius:22px;
+    background:var(--surface);border:2px solid var(--line-strong);
+    display:flex;align-items:center;justify-content:center;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:13px;font-weight:600;color:var(--muted);position:relative;z-index:1;
+  }
+  .stage.key .marker{border-color:var(--accent);color:var(--accent);}
+  .stage.add .marker{border-style:dashed;}
+  .stage-body{display:flex;flex-direction:column;gap:12px;padding-top:6px;min-width:0;}
+  .stage h2{
+    font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+    font-weight:700;font-size:22px;letter-spacing:-.015em;margin:0;text-wrap:balance;
+  }
+  .stage p{margin:0;max-width:64ch;}
+  .stage p.sub{color:var(--muted);font-size:15px;}
+
+  .box{
+    background:var(--surface);border:1px solid var(--line);border-radius:6px;
+    padding:16px 18px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:8px;min-width:0;
+  }
+  .box h3{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    font-weight:600;color:var(--muted);margin:0;
+  }
+  .box.teal{border-left:3px solid var(--teal);}
+  .box.teal h3{color:var(--teal);}
+  .box.amber{border-left:3px solid var(--accent);}
+  .box.amber h3{color:var(--accent);}
+  .box.bad{border-left:3px solid var(--flag);}
+  .box.bad h3{color:var(--flag);}
+  .box p{font-size:15px;margin:0;}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:640px){
+    .pair{grid-template-columns:1fr;}
+    .stage{grid-template-columns:44px 1fr;gap:0 14px;}
+    .marker{width:44px;height:38px;font-size:11px;}
+    .stage::before{left:21px;top:38px;}
+    .wrap{padding:40px 18px 72px;}
+  }
+
+  ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:15px;}
+  ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:15px;}
+  li::marker{color:var(--line-strong);}
+
+  code{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.87em;background:var(--surface-2);padding:1px 5px;border-radius:3px;color:var(--ink);
+  }
+  .fields{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12.5px;color:var(--muted);line-height:1.9;word-break:break-word;
+  }
+  pre{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12.5px;line-height:1.7;background:var(--surface-2);
+    border-radius:4px;padding:12px 14px;margin:0;overflow-x:auto;color:var(--ink);
+  }
+
+  table.t{width:100%;border-collapse:collapse;font-size:14px;}
+  table.t th{
+    text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;padding:0 12px 8px 0;border-bottom:1px solid var(--line);
+  }
+  table.t td{padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.t tr:last-child td{border-bottom:none;}
+  table.t td.m{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;
+    color:var(--teal);white-space:nowrap;
+  }
+  table.t td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .scroll{overflow-x:auto;}
+
+  /* 2x2 verdict grid */
+  .grid22{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;align-items:stretch;}
+  .g-lbl{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    display:flex;align-items:center;
+  }
+  .g-lbl.col{justify-content:center;text-align:center;}
+  .g-lbl.row{writing-mode:vertical-rl;transform:rotate(180deg);justify-content:center;}
+  .g-cell{
+    border:1px solid var(--line);border-radius:5px;padding:14px 15px;
+    display:flex;flex-direction:column;gap:5px;background:var(--surface);min-height:112px;
+  }
+  .g-cell .v{
+    font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+    font-weight:700;font-size:16px;letter-spacing:-.01em;line-height:1.2;
+  }
+  .g-cell .d{font-size:13.5px;color:var(--muted);line-height:1.5;}
+  .g-cell.win{background:var(--teal-soft);border-color:var(--teal);}
+  .g-cell.win .v{color:var(--teal);}
+  .g-cell.draw{background:var(--accent-soft);border-color:var(--accent);}
+  .g-cell.draw .v{color:var(--accent);}
+  .g-cell.none{background:var(--flag-soft);border-color:var(--flag);}
+  .g-cell.none .v{color:var(--flag);}
+  @media (max-width:640px){
+    .grid22{grid-template-columns:1fr;}
+    .g-lbl.row{writing-mode:horizontal-tb;transform:none;}
+    .g-lbl.col{display:none;}
+  }
+
+  .wf{overflow-x:auto;padding-bottom:4px;}
+  .wf-inner{display:flex;flex-direction:column;gap:3px;min-width:420px;}
+  .wf-row{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;}
+  .wf-head{margin-bottom:3px;}
+  .wf-head span{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;
+  }
+  .cell{height:22px;border-radius:2px;background:var(--surface-2);}
+  .cell.tr{background:var(--teal);opacity:.75;}
+  .cell.te{background:var(--accent);}
+  .legend{
+    display:flex;gap:18px;flex-wrap:wrap;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  }
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px;}
+
+  .loop{border:1px dashed var(--line-strong);border-radius:6px;padding:14px 18px;font-size:15px;color:var(--muted);}
+  .loop strong{color:var(--ink);font-weight:600;}
+
+  footer{border-top:1px solid var(--line);padding-top:24px;display:flex;flex-direction:column;gap:14px;}
+  footer h2{font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-size:18px;margin:0;letter-spacing:-.01em;}
+  dl{margin:0;display:flex;flex-direction:column;gap:10px;}
+  dt{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;font-weight:600;color:var(--accent);}
+  dd{margin:2px 0 0;font-size:15px;color:var(--muted);max-width:64ch;}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Premier League Predictor &middot; The Process</div>
+    <h1>PLEA and the Match Call</h1>
+    <p class="standfirst">Your five steps, with the ordering fixed and the last one filled in. PLEA rates every club from 2010; the model turns those ratings and a handful of match facts into one of four verdicts.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="n">2010/11</div><div class="l">PLEA starts</div></div>
+    <div class="stat"><div class="n">2017/18</div><div class="l">Training starts</div></div>
+    <div class="stat"><div class="n">~6,840</div><div class="l">Training rows</div></div>
+    <div class="stat"><div class="n">4</div><div class="l">Possible verdicts</div></div>
+  </div>
+
+  <div class="callout warn">
+    <div class="tag">Two ordering fixes before anything gets written</div>
+    <p><strong>Clean before PLEA, not after.</strong> PLEA is a chain &mdash; each match updates a rating that feeds the next one. If <code>Man Utd</code> and <code>Manchester United</code> are two names in the raw file, PLEA builds two half-finished rating histories and every number downstream is wrong. The cleaning PLEA needs is small (names, dates, no duplicates), so it becomes step 0 and the heavier cleaning stays where you had it.</p>
+    <p><strong>PLEA must produce a history, not just today's table.</strong> "Elos up to date as of today" is enough to rank clubs and nothing else. To train on a 2019 match you need the ratings <em>as they stood the morning of that match</em>. Using today's ratings on a 2019 match hands the model seven years of hindsight and quietly ruins the whole project.</p>
+  </div>
+
+  <div class="rule">Part one &mdash; ratings first</div>
+
+  <div class="flow">
+
+    <section class="stage add">
+      <div class="marker">0</div>
+      <div class="stage-body">
+        <h2>Minimal clean, just enough for PLEA</h2>
+        <p class="sub">Four fields have to be perfect. Nothing else matters yet.</p>
+        <div class="box">
+          <h3>What PLEA needs</h3>
+          <div class="fields">date &middot; home team &middot; away team &middot; home goals &middot; away goals</div>
+          <ul>
+            <li>One canonical name per club, applied to both team columns. An unknown name <strong>stops the run</strong>.</li>
+            <li>No duplicate fixtures, no missing matchdays. Every completed season: 380 matches, 20 clubs, 38 each.</li>
+            <li>Sorted strictly by date, then kickoff time. PLEA is order-dependent &mdash; a match out of sequence corrupts everything after it.</li>
+          </ul>
+        </div>
+        <div class="box bad">
+          <h3>The dropping rule &mdash; this one bites</h3>
+          <p>Your step 2 says "get rid of matches without certain data we need". Be careful which table you're dropping from.</p>
+          <p><strong>Never drop a match from PLEA.</strong> A missing xG doesn't mean the match wasn't played &mdash; and removing it breaks the rating chain for both clubs. Drop rows from the <em>training table</em> in step 2 if you must; the rating history keeps every match that has a score.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage key">
+      <div class="marker">PLEA</div>
+      <div class="stage-body">
+        <h2>Premier League Elo Algorithm</h2>
+        <p class="sub">Replay every match from August 2010 in date order. Each club carries one number.</p>
+        <div class="box amber">
+          <h3>v1 spec</h3>
+<pre>expected = 1 / (1 + 10 ** ((opp_elo - own_elo - HOME_ADV) / 400))
+actual   = 1.0 win | 0.5 draw | 0.0 loss
+margin   = 1.0 if gd == 1
+           1.5 if gd == 2
+           (11 + gd) / 8 if gd >= 3
+
+new_elo  = own_elo + K * margin * (actual - expected)</pre>
+          <div class="scroll" style="margin-top:6px;">
+            <table class="t">
+              <thead><tr><th>Parameter</th><th>v1 value</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td class="m">K</td><td class="num">20</td><td>Reaction speed. Higher = jumpier ratings.</td></tr>
+                <tr><td class="m">HOME_ADV</td><td class="num">65</td><td>Points added to the home side before comparing.</td></tr>
+                <tr><td class="m">START_ELO</td><td class="num">1500</td><td>Everyone's rating in August 2010.</td></tr>
+                <tr><td class="m">PROMOTED_ELO</td><td class="num">1400</td><td>What a newly promoted club walks in on.</td></tr>
+                <tr><td class="m">CARRY_OVER</td><td class="num">0.80</td><td>Between seasons: <code>1500 + 0.80 * (elo - 1500)</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:8px;">Freeze these five for v1. Don't tune anything until the pipeline runs end to end &mdash; then change one at a time and check the score. Every change makes a new version: <code>PLEA v1</code>, <code>PLEA v2</code>. The run log records which version produced which result.</p>
+        </div>
+        <div class="box">
+          <h3>Output: a history table, one row per club per match</h3>
+          <div class="fields">date &middot; season &middot; team &middot; opponent &middot; is_home &middot; <strong>elo_before</strong> &middot; elo_after &middot; <strong>opp_elo_before</strong> &middot; result</div>
+          <p>Your ranked table for any season is a query against this, not a separate thing: pick a date, take each club's latest <code>elo_after</code> before it, sort. Changing "current season" is changing the date.</p>
+          <p>The model only ever reads <code>elo_before</code>. <code>elo_after</code> already knows the result you're predicting.</p>
+        </div>
+        <div class="box teal">
+          <h3>Test PLEA on its own, before any machine learning</h3>
+          <p>Group every historical match by its Elo gap and check what actually happened. If matches where the gap says 65% produced roughly 65% wins, PLEA works. If they produced 80%, your K is too low; if 55%, too high. You can tune the five parameters on this alone.</p>
+          <p><strong>Then use PLEA as your first predictor.</strong> No model, no features &mdash; just "higher adjusted Elo wins". If that beats 45% (always picking the home side), you have a working foundation and a real number to improve on. If it doesn't, something is broken and you've found it before writing any of the hard part.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="rule">Part two &mdash; the data</div>
+
+    <section class="stage">
+      <div class="marker">2</div>
+      <div class="stage-body">
+        <h2>Full clean, for the training table</h2>
+        <p class="sub">Now the heavier pass, on the 2017/18-onwards data where xG exists.</p>
+        <div class="pair">
+          <div class="box">
+            <h3>What gets fixed</h3>
+            <ul>
+              <li>Same canonical names, now on every column.</li>
+              <li>Types: dates as dates, hour out of kickoff time.</li>
+              <li>Duplicates removed, goals reconciled both ways.</li>
+            </ul>
+          </div>
+          <div class="box">
+            <h3>Missing values</h3>
+            <p>Never fill a gap with zero &mdash; zero shots is a real number and means something different. Leave it missing, log why, and drop the row only if a field you actually need is gone.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="marker">3</div>
+      <div class="stage-body">
+        <h2>Sanity checks &mdash; not a research phase</h2>
+        <p class="sub">This step used to be "test every hypothesis". It shouldn't be. The model picks its own features far better than one-at-a-time tests can, so what's left here is smaller, and different in kind.</p>
+        <div class="box bad">
+          <h3>Why this step exists at all</h3>
+          <p><strong>The model cannot tell you that your data is cheating.</strong> Build the rolling-form window the wrong way round, so today's goals leak into today's clues, and it won't complain &mdash; it will score 85% and look like a triumph. There is no error message. Everything stays beautiful right up until you predict a real match.</p>
+          <p>These checks are the only defence, because they're the one place you compare your table against something you already know to be true. You <em>know</em> home teams win about 45% of the time. If the table says otherwise, something is broken &mdash; and you've found it in five minutes instead of five weeks.</p>
+        </div>
+        <div class="box scroll">
+          <h3>The fixed list &mdash; runs on every ingest, forever</h3>
+          <table class="t">
+            <thead><tr><th>Check</th><th>Expected</th><th>What a failure means</th></tr></thead>
+            <tbody>
+              <tr><td>Home win rate</td><td class="num">~45%</td><td>Home/away flipped, or the target is wrong.</td></tr>
+              <tr><td>Away win rate</td><td class="num">~30%</td><td>Same.</td></tr>
+              <tr><td>Draw rate</td><td class="num">~25%</td><td>Results parsed wrongly.</td></tr>
+              <tr><td>Higher Elo wins</td><td class="num">~60%</td><td>PLEA is broken or the ratings are misaligned.</td></tr>
+              <tr><td>Any single column predicting alone</td><td class="num">&lt; 70%</td><td><strong>Leakage.</strong> Nothing in football is this good on its own.</td></tr>
+              <tr><td>Form columns vs this match's stats</td><td class="num">no match</td><td>The rolling window is including the current match.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="box teal">
+          <h3>If you do want to explore a variable, use PLEA as the yardstick</h3>
+          <p>"Do home teams win more?" &mdash; yes, obviously, and it tells you nothing. The useful version is: <strong>do they win more than their Elo gap says they should?</strong> Take PLEA's expected result, subtract it from what happened, and look at what's left. That strips out "better clubs win" and shows you the bit Elo doesn't already know.</p>
+          <p>Worth doing before you spend an evening <em>building</em> a feature &mdash; it's cheap triage on your own time. It is not how you decide what to keep.</p>
+        </div>
+        <div class="box amber">
+          <h3>Where the real answer comes from</h3>
+          <p>"Which variables matter" is a question you ask the trained model, in step 6 &mdash; not the raw data here. It answers it for free, and it answers it properly: every column judged alongside all the others, which no one-at-a-time test can do.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="marker">4</div>
+      <div class="stage-body">
+        <h2>Build the table &mdash; one row per team per match</h2>
+        <p class="sub">Every number here comes only from matches that finished before this one kicked off.</p>
+        <div class="box scroll">
+          <table class="t">
+            <thead><tr><th>Group</th><th>Columns</th></tr></thead>
+            <tbody>
+              <tr><td class="m">fixture</td><td><code>is_home</code> 1/0 &middot; <code>kickoff_hour</code> &middot; <code>day_of_week</code> &middot; <code>rest_days</code> &middot; <code>rest_days_gap</code> &middot; <code>matchweek</code></td></tr>
+              <tr><td class="m">PLEA</td><td><code>own_elo</code> &middot; <code>opp_elo</code> &middot; <code>elo_gap</code> &middot; <code>elo_expected</code></td></tr>
+              <tr><td class="m">form &middot; last 5</td><td><code>gf</code> <code>ga</code> <code>xg</code> <code>xga</code> <code>sh</code> <code>sot</code> <code>points</code> &mdash; and the same five columns for the opponent</td></tr>
+              <tr><td class="m">season to date</td><td><code>ppg</code> &middot; <code>position</code> &middot; <code>played</code></td></tr>
+              <tr><td class="m">answer</td><td><code>target</code> &mdash; 1 win, 0 draw or loss</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="box amber">
+          <h3>Keep more than your hypothesis tests suggest</h3>
+          <p>A random forest ignores a useless column almost for free. Losing a useful one costs you real accuracy. So let step 3 tell you what's going on &mdash; but keep the borderline columns and let the walk-forward score decide.</p>
+        </div>
+        <div class="box bad">
+          <h3>The gap you'll hit in about three weeks</h3>
+          <p>It's August. The 2026/27 season has barely started, so "form over the last 5 matches" doesn't exist yet, and season-to-date position is meaningless after two games.</p>
+          <p>Decide now what happens in matchweek 1: carry the tail of last season into the form window, or let the form columns sit empty and lean on PLEA alone. Either is defensible &mdash; but if you don't pick, the first predictions of the season will be silently garbage.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="rule">Part three &mdash; the call</div>
+
+    <section class="stage add">
+      <div class="marker">what</div>
+      <div class="stage-body">
+        <h2>What "the model" actually is</h2>
+        <p class="sub">Not a function you write. A file that training produces &mdash; and the smallest part of this whole project.</p>
+        <div class="box">
+          <h3>Where it comes from</h3>
+          <p>You hand it the table from step 4: about 6,840 rows, each with roughly 20 numbers and one answer. It reads all of them and gives back a file. That's training &mdash; two lines of code, a few seconds to run.</p>
+        </div>
+        <div class="box amber">
+          <h3>What's inside the file</h3>
+          <p>Fifty flowcharts of yes/no questions. One of them looks roughly like this:</p>
+<pre>elo_gap &gt; 120 ?
+├─ yes → is_home == 1 ?
+│        ├─ yes → WIN      (happened 71% of the time)
+│        └─ no  → WIN      (58%)
+└─ no  → form_points &gt; 1.8 ?
+         ├─ yes → WIN      (49%)
+         └─ no  → NOT WIN  (34%)</pre>
+          <p><strong>You didn't write <code>elo_gap &gt; 120</code>.</strong> The computer found it, by trying every column at every threshold across all 6,840 rows and keeping whichever split separated wins from non-wins best &mdash; then doing the same again on each branch. That search is what training means.</p>
+        </div>
+        <div class="box">
+          <h3>How it judges a split</h3>
+          <p>It measures how much <em>cleaner</em> the two resulting groups are &mdash; closer to all-wins or all-losses. Say a node holds 1,000 matches, 400 of them wins: a messy 40/60 mix.</p>
+<pre>split on  elo_gap &gt; 120        split on  kickoff_hour &gt; 15
+├─ 300 matches, 70% wins       ├─ 500 matches, 41% wins
+└─ 700 matches, 27% wins       └─ 500 matches, 39% wins
+   both sides much cleaner        barely moved — useless</pre>
+          <p>It keeps <code>elo_gap</code> and moves on. A column that never produces a clean split never gets used, which is why carrying a useless column costs you almost nothing.</p>
+          <p>The library (scikit-learn) runs that search, but it isn't a black box &mdash; the rule above is the entire algorithm. It's doing a fast brute-force loop, not thinking.</p>
+        </div>
+        <div class="pair">
+          <div class="box teal">
+            <h3>Why fifty and not one</h3>
+            <p>A single flowchart memorises quirks in your particular data. So it builds fifty, each on a random slice of the rows and columns, and they vote.</p>
+          </div>
+          <div class="box teal">
+            <h3>Where the probability comes from</h3>
+            <p>The vote count, literally. 34 of 50 trees say win, so the answer is 0.68. That is all <code>predict_proba</code> does.</p>
+          </div>
+        </div>
+        <div class="box scroll">
+          <h3>Who does what</h3>
+          <table class="t">
+            <thead><tr><th>You write</th><th>The model works out</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Pulling, cleaning, PLEA, the feature table, the 2 &times; 2 verdict rules, the scoreboard.</td>
+                <td>How much each column matters, and in which combinations.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="margin-top:8px;"><strong>PLEA is the opposite kind of thing.</strong> It's a formula you write and can reason about &mdash; you choose K and the home bonus. The model is the reverse: you decide what to show it, it decides what matters. Both live in the project, but only one of them is machine learning.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage key">
+      <div class="marker">5</div>
+      <div class="stage-body">
+        <h2>The prediction function</h2>
+        <p class="sub">Your step 5, filled in. The short version: you don't write the complicated algorithm &mdash; you train it.</p>
+        <div class="box bad">
+          <h3>The one thing to drop from your plan</h3>
+          <p>"A complicated algorithm with these numbers to construct a percentage" &mdash; that <em>is</em> the machine learning model. If you hand-write the weighting rules, you'll be tuning coefficients by feel forever, with no way to tell whether a change helped.</p>
+          <p>Steps 0&ndash;4 exist to produce a clean table. The model learns the weights from it. Your job is the inputs and the scoreboard; the algorithm is discovered, not designed.</p>
+        </div>
+        <div class="box">
+          <h3>What the function actually does</h3>
+<pre>predict(home_team, away_team, date):
+
+  1. look up elo_before for both clubs, as of date
+  2. build the feature row from the HOME team's perspective
+  3. build the feature row from the AWAY team's perspective
+  4. p_home = model.predict_proba(row_home)
+     p_away = model.predict_proba(row_away)
+  5. read the 2 x 2 below -> one verdict</pre>
+          <p>Same row shape as training, built by the same code. That's what stops next Saturday's prediction from quietly disagreeing with the backtest.</p>
+        </div>
+        <div class="box teal">
+          <h3>Your four outputs are cleverer than you framed them</h3>
+          <p>You described two ways of doing this and picked the second &mdash; ask each side separately, let the numbers not add to 100. That's the right call, and it buys you something you didn't mention: <strong>a draw detector, for free.</strong></p>
+          <p>Two independent questions give four combinations, and the case where <em>both</em> answers are low is exactly what a draw looks like. You get three-outcome behaviour out of a two-outcome model.</p>
+        </div>
+        <div class="box">
+          <h3>The 2 &times; 2</h3>
+          <div class="grid22" style="margin-top:4px;">
+            <div></div>
+            <div class="g-lbl col">Away win probability<br>LOW</div>
+            <div class="g-lbl col">Away win probability<br>HIGH</div>
+
+            <div class="g-lbl row">Home prob HIGH</div>
+            <div class="g-cell win">
+              <div class="v">The HOME team WILL win</div>
+              <div class="d">Both rows agree. Your most confident call.</div>
+            </div>
+            <div class="g-cell none">
+              <div class="v">No call</div>
+              <div class="d">Both rows claim the win &mdash; they contradict each other. Report low confidence rather than forcing a winner.</div>
+            </div>
+
+            <div class="g-lbl row">Home prob LOW</div>
+            <div class="g-cell draw">
+              <div class="v">The HOME team WILL NOT win<br><span style="font-weight:400;font-size:13.5px;">&mdash; likely a draw</span></div>
+              <div class="d">Neither side is backed. This is your draw signal, and it's the most interesting cell on the grid.</div>
+            </div>
+            <div class="g-cell win">
+              <div class="v">The AWAY team WILL win</div>
+              <div class="d">Both rows agree the other way.</div>
+            </div>
+          </div>
+          <p style="margin-top:12px;">HIGH and LOW are one threshold you set once and tune &mdash; start at 0.50 and move it based on what the test seasons say.</p>
+        </div>
+        <div class="box amber">
+          <h3>Return the numbers alongside the verdict</h3>
+          <p>The verdict is what you show. The two probabilities are what you store. You can always turn numbers into a label later; you can never recover the numbers from a label &mdash; and without them you can't tell a 0.51 call from a 0.94 one when you're working out what went wrong.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="marker">6</div>
+      <div class="stage-body">
+        <h2>Score it across seven seasons</h2>
+        <p class="sub">Train on everything before a season, predict that season, record the score. Step forward, repeat.</p>
+        <div class="box">
+          <h3>The rounds</h3>
+          <div class="wf">
+            <div class="wf-inner">
+              <div class="wf-row wf-head"><span>17/18</span><span>18/19</span><span>19/20</span><span>20/21</span><span>21/22</span><span>22/23</span><span>23/24</span><span>24/25</span><span>25/26</span></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div><div class="cell "></div><div class="cell "></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div><div class="cell "></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div><div class="cell "></div></div>
+              <div class="wf-row"><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell tr"></div><div class="cell te"></div></div>
+            </div>
+          </div>
+          <div class="legend" style="margin-top:10px;">
+            <span><i style="background:var(--teal);opacity:.75;"></i>Train</span>
+            <span><i style="background:var(--accent);"></i>Test</span>
+            <span><i style="background:var(--surface-2);"></i>Not yet available</span>
+          </div>
+        </div>
+        <div class="box">
+          <h3>The scoreboard</h3>
+          <ul>
+            <li><strong>Baseline to beat &mdash; 45%.</strong> Always picking the home team. Anything below this is learning noise.</li>
+            <li><strong>PLEA alone.</strong> Your second bar, from the test back in part one. The model has to beat the ratings it's built on, or the extra columns aren't earning their place.</li>
+            <li><strong>Log loss / Brier score.</strong> Whether the probabilities mean what they say.</li>
+            <li><strong>Verdict accuracy per cell.</strong> Track the four outputs separately &mdash; "no call" being 40% of your predictions is a real problem that an overall accuracy number hides completely.</li>
+            <li><strong>A run log.</strong> Every experiment writes its settings, its PLEA version and its seven scores to a file.</li>
+          </ul>
+        </div>
+        <div class="box amber">
+          <h3>Which variables actually mattered &mdash; asked here, not in step 3</h3>
+          <p><code>rf.feature_importances_</code> adds up how much each column cleaned up the splits across all fifty trees. One line, free after training, and it judges every column alongside all the others rather than in isolation.</p>
+          <p>Two things to know. Importance is <em>biased towards columns with many distinct values</em>, so a continuous number will out-rank a 0/1 flag that's doing more real work. And two correlated columns split their credit between them, so both look weaker than either is.</p>
+          <p>The honest version when it matters: <strong>permutation importance</strong> &mdash; shuffle one column's values and see how far the score falls. Slower, much harder to fool. And the final word on any keep-or-drop decision is still the same: drop it, retrain, check whether the seven-season score got worse.</p>
+        </div>
+        <div class="box bad">
+          <h3>Expect 2020/21 to look bad</h3>
+          <p>Empty stadiums, home advantage nearly vanished. That round will score worse than its neighbours. It's the season being strange, not the model being broken &mdash; note it so you don't chase it.</p>
+        </div>
+        <div class="loop">
+          <strong>Weekly, once it's live:</strong> pull only the new results &rarr; quality gate &rarr; extend the PLEA history &rarr; rebuild form &rarr; retrain &rarr; score the upcoming fixtures. Nothing here hard-codes today's date; every function takes it as an argument. That's what makes next August a non-event.
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <h2>Plain-English glossary</h2>
+    <dl>
+      <dt>PLEA</dt>
+      <dd>Premier League Elo Algorithm. One number per club, up after good results, down after bad, replayed over sixteen seasons of matches.</dd>
+      <dt>elo_before / elo_after</dt>
+      <dd>A club's rating going into a match and coming out of it. The model only ever sees "before" &mdash; "after" already knows the answer.</dd>
+      <dt>expected goals (xG)</dt>
+      <dd>How good a team's chances were, whether or not they went in. A tap-in is about 0.8, a 30-yard shot about 0.03. Less noisy than goals.</dd>
+      <dt>leakage</dt>
+      <dd>Letting the model see anything from after kickoff. The most common way a football model looks brilliant in testing and fails for real.</dd>
+      <dt>walk-forward testing</dt>
+      <dd>Train on the past, test on the next season, step forward, repeat. Seven honest scores rather than one.</dd>
+      <dt>calibration</dt>
+      <dd>Whether "68%" comes true about 68% of the time. Needed before any number goes on screen.</dd>
+      <dt>baseline</dt>
+      <dd>The dumbest prediction, used as the bar to clear. Here: "the home team wins", right about 45% of the time.</dd>
+    </dl>
+  </footer>
+
+</div>
