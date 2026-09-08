@@ -104,6 +104,11 @@ def download_all(seasons=None, *, force: bool = False) -> dict[int, str]:
             outcome[end_year] = "not published yet"
         except requests.HTTPError as exc:
             outcome[end_year] = f"unavailable (HTTP {exc.response.status_code})"
+        except requests.RequestException as exc:
+            # Timeouts, TLS handshake failures, DNS. Never fatal: the seasons
+            # already on disk are what matter, and a blip on one of them should
+            # not stop a pipeline that has everything else cached.
+            outcome[end_year] = f"network error ({type(exc).__name__})"
     return outcome
 
 

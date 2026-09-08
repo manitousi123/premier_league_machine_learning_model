@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from plfootball import config, ingest, plea, quality
+from plfootball import config, features, ingest, plea, quality
 
 
 def main() -> int:
@@ -52,8 +52,36 @@ def main() -> int:
     print(f"  {len(history):,} rating rows\n")
     quality.report(quality.check_plea(history))
 
+    print()
+    print("=" * 66)
+    print("5. FEATURE TABLE")
+    print("=" * 66)
+    table = features.build_features(results, history)
+    print(f"  {len(table):,} rows x {len(table.columns)} columns")
+    print(f"  {int((table['crowd'] == 0).sum()):,} rows played behind closed doors")
+    print(f"  target mean {table['target'].mean():.3f}\n")
+
+    # Leakage tripwire. Nothing legitimate predicts a football match this well
+    # on its own, so a high correlation here means a feature has seen the result.
+    ignore = {"date", "season", "team", "opponent", "target"}
+    numeric = table[[c for c in table.columns if c not in ignore]].select_dtypes("number")
+    worst = numeric.corrwith(table["target"]).abs().sort_values(ascending=False)
+    quality.report(
+        [
+            quality.Check(
+                "no feature is suspiciously predictive",
+                worst.max() < 0.70,
+                f"strongest is {worst.index[0]} at {worst.max():.3f} (leakage if > 0.70)",
+            )
+        ]
+    )
+
     results.to_parquet(config.PROCESSED / "results.parquet", index=False)
     history.to_parquet(config.PROCESSED / "plea_history.parquet", index=False)
+    table.to_parquet(config.PROCESSED / "features.parquet", index=False)
+    # Parquet is what the model loads; the CSV is so a human can open the table
+    # in a spreadsheet without needing Python.
+    table.to_csv(config.PROCESSED / "features.csv", index=False)
 
     print()
     print("=" * 66)
