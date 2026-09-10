@@ -7,18 +7,24 @@ It works from two things: a rating for every club, built by replaying every matc
 since 2010, and how each side has been playing lately. Those feed a model trained
 on sixteen seasons of results, which returns a probability for each team and one call.
 
-Right now the ratings and the training table are built. The model itself isn't trained yet.
+The ratings, the training table and the model are all built, and the model has
+been tested against thirteen seasons it never saw. The result was not the one
+we wanted — see [What the backtest found](#what-the-backtest-found).
 
 ## Running it
 
 ```bash
 pip install -e ".[dev]"
 python scripts/build_dataset.py
+python scripts/train_model.py
 ```
 
-Downloads the results, checks them, builds the ratings and the training table.
+The first script downloads the results, checks them, and builds the ratings and
+the training table. The second grades the model against three baselines on
+seasons it was never trained on, then trains the one that gets kept.
+
 `notebooks/plea_ratings.ipynb` and `notebooks/feature_table.ipynb`
-has the tables and charts; `docs/model-workflow.html` explains how it fits together.
+have the tables and charts; `docs/model-workflow.html` explains how it fits together.
 
 ## PLEA in plain English
 
@@ -146,6 +152,103 @@ Manchester City  1733 → 1719.8      Arsenal  1709 → 1722.2
 ```
 
 Same match, both sides, and the two changes cancel exactly. That's step 4.
+
+## What the backtest found
+
+The honest answer: **the model is not yet better than the ratings it is built
+from.** It is not worse either. It is the same, and that is a real result rather
+than a bug to be fixed by trying harder.
+
+### How it was tested
+
+Walk-forward. Train on every season before season S, predict S, move to S+1 —
+thirteen rounds, 9,880 predictions, none of them made by a model that had seen
+a single match played after the one it was predicting. Three bars to clear:
+
+| Contender | What it knows | Accuracy | Log loss | Brier | AUC | Calibration |
+|---|---|---|---|---|---|---|
+| `plea_only` | one number: PLEA's expectation | 68.8% | **0.5855** | 0.2004 | 0.729 | 0.0105 |
+| `forest` | all 29 columns | 68.8% | 0.5867 | 0.2006 | 0.728 | 0.0096 |
+| `home_or_away` | the home and away win rates | 61.8% | 0.6575 | 0.2325 | 0.565 | 0.0245 |
+| `base_rate` | one number, the win rate | 61.8% | 0.6655 | 0.2363 | 0.495 | 0.0132 |
+
+Log loss is the column that matters — accuracy throws away the difference
+between "60% sure" and "99% sure", and a model that simply never predicts an
+away win still scores 62%.
+
+### Is the gap real?
+
+No. Comparing the two models match by match rather than on their averages:
+
+```
+forest vs plea_only    -0.00118  +/- 0.00132    z = -0.89   noise
+home_or_away           -0.07191  +/- 0.00449    z = -16.00  REAL
+base_rate              -0.07997  +/- 0.00477    z = -16.76  REAL
+```
+
+The test has no trouble seeing the baselines lose by a mile. It sees nothing
+between the forest and PLEA. Every hyperparameter tried — leaf sizes from 10 to
+200, three settings of `max_features` — landed within 0.012 log loss of every
+other, and logistic regression and gradient boosting both landed there too. The
+ceiling is not the model.
+
+### Why
+
+Scrambling one column at a time and measuring the damage says it plainly:
+
+```
+elo_expected      0.0365      <- everything
+elo_gap           0.0042      <- the same information, restated
+is_home           0.0011
+everything else  <=0.0006     <- 12 of 29 columns cost nothing at all
+```
+
+The diagnosis is that **form is not opponent-adjusted**. `form_gf = 1.4` means
+something completely different depending on whether the last five matches were
+against Manchester City or against Burnley. PLEA already knows how good a club
+is, so the only genuinely new content in a raw five-match average is *who they
+happened to play* — which is schedule noise, not skill. The model correctly
+declines to use it.
+
+That is a flaw in the features, not in the model. The 25 form and season columns
+were built to describe a club; they mostly describe its fixture list.
+
+### What does work
+
+PLEA is well calibrated, and so is the forest built on it. Across the thirteen
+test seasons, sorted into ten buckets by confidence:
+
+| Predicted | Actually won | Gap |
+|---|---|---|
+| 10.9% | 12.0% | −1.2 |
+| 22.3% | 24.2% | −1.9 |
+| 38.2% | 38.1% | +0.1 |
+| 51.8% | 52.4% | −0.7 |
+| 75.6% | 73.2% | +2.4 |
+
+When it says 38%, it happens 38% of the time. Rejoining the two perspectives
+into one verdict gives the right call on **61.9% of 4,940 matches**, and there
+was not a single fixture where the home and away probabilities added to more
+than 1 — the model never contradicted itself.
+
+### Next
+
+Three things worth trying, in order of how much they should move the number:
+
+1. **Opponent-adjusted form.** Goals scored relative to what those specific
+   opponents usually concede. This is the one that addresses the diagnosis
+   above, and the only one on this list that adds information PLEA lacks.
+2. **Separate attack and defence ratings.** PLEA collapses a club into a single
+   number, so a side that wins 4–3 every week and one that wins 1–0 every week
+   look identical to it — despite being very different match-ups.
+3. **PLEA v2.** `home_adv` is set to 65 but measures ~47.9 in the data, and the
+   era breakdown is stark: 55 points (2010–16), 58 (2016–20), **−8 (2020/21)**,
+   43 (2021–26). Frozen deliberately until the feature work is done, so that one
+   change is not being evaluated through another.
+
+For scale: bookmakers land somewhere near 0.55 log loss on the same question.
+At 0.586 the gap left to close is real but not enormous, and roughly half of a
+football match is genuinely not predictable from anything.
 
 ## Edge cases in the training table
 

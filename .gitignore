@@ -8,7 +8,8 @@ __pycache__/
 # raw downloads are reproducible; keep them out of git
 data/raw/
 data/processed/
-models/*.pkl
+# trained models are build output too — scripts/train_model.py rebuilds them
+models/
 notebooks/.ipynb_checkpoints/
 
 # notebook HTML exports — regenerate with:
