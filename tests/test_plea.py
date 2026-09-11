@@ -53,7 +53,7 @@ def test_winner_gains_loser_loses():
 def test_bigger_win_moves_ratings_further():
     narrow = plea.run(pd.DataFrame([_match("2020-08-01", 2021, "Arsenal", "Chelsea", 1, 0)]))
     wide = plea.run(pd.DataFrame([_match("2020-08-01", 2021, "Arsenal", "Chelsea", 4, 0)]))
-    gain = lambda h: h.set_index("team").loc["Arsenal", "elo_after"] - 1500  # noqa: E731
+    gain = lambda h: h.set_index("team").loc["Arsenal", "elo_after"] - 1500
     assert gain(wide) > gain(narrow)
 
 

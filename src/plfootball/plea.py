@@ -17,7 +17,7 @@ and, crucially, the model reads ``elo_before`` and never ``elo_after``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
 import pandas as pd
 

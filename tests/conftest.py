@@ -18,15 +18,18 @@ from plfootball import model
 CLUBS = [f"club_{i:02d}" for i in range(10)]
 
 # Columns make_table fills deliberately. `elo_expected` carries the planted
-# signal and `is_home` a weaker real one (home sides win more often here, as
-# they do in life); the rest are structural. Every other feature is pure noise,
-# which is what lets a test assert that a model ignored it.
-MEANINGFUL = ["elo_expected", "is_home", "crowd", "played"]
-NOISE = [c for c in model.FEATURES if c not in MEANINGFUL]
+# signal, the two shot gaps a weaker version of it, and `is_home` a real one
+# (home sides win more often here, as they do in life); the rest are
+# structural. Every other candidate column is pure noise, which is what lets a
+# test assert that a model ignored it.
+MEANINGFUL = [
+    "elo_expected", "sot_gap", "shots_gap", "is_home", "crowd", "played",
+]
+NOISE = [c for c in model.CANDIDATES if c not in MEANINGFUL]
 
 
 def make_table(seasons=(1, 2, 3), matches_per_season: int = 120, seed: int = 0) -> pd.DataFrame:
-    """One row per club per match, two rows per fixture, every FEATURES column present."""
+    """One row per club per match, two rows per fixture, every table column present."""
     rng = np.random.default_rng(seed)
     frames = []
 
@@ -45,7 +48,7 @@ def make_table(seasons=(1, 2, 3), matches_per_season: int = 120, seed: int = 0) 
         away_won = (~home_won) & (rng.random(n) < 0.55)
 
         for is_home in (1, 0):
-            block = pd.DataFrame({c: rng.normal(size=n) for c in model.FEATURES})
+            block = pd.DataFrame({c: rng.normal(size=n) for c in model.CANDIDATES})
             block["date"] = dates
             block["season"] = season
             block["team"] = home if is_home else away
@@ -58,11 +61,16 @@ def make_table(seasons=(1, 2, 3), matches_per_season: int = 120, seed: int = 0) 
             # being a perfect giveaway, which no real feature ever is.
             own = chance if is_home else 1 - chance
             block["elo_expected"] = np.clip(own + rng.normal(0, 0.05, n), 0.02, 0.98)
+            # the shot gaps are mirrored between the two rows of a fixture, as
+            # a difference always is, and carry a weaker version of the signal
+            side = 1 if is_home else -1
+            block["sot_gap"] = side * (chance - 0.5) * 6 + rng.normal(0, 1.5, n)
+            block["shots_gap"] = side * (chance - 0.5) * 9 + rng.normal(0, 3.0, n)
             block["target"] = (home_won if is_home else away_won).astype(int)
             frames.append(block)
 
     table = pd.concat(frames, ignore_index=True)
-    return table[model.IDENTITY + model.FEATURES + [model.TARGET]].sort_values(
+    return table[model.IDENTITY + model.CANDIDATES + [model.TARGET]].sort_values(
         ["date", "team"], kind="stable", ignore_index=True
     )
 

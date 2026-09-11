@@ -13,19 +13,23 @@ from .conftest import NOISE, make_table
 # --- the input contract ---------------------------------------------------
 
 
-def test_features_identity_and_target_account_for_every_column(table):
+def test_candidates_identity_and_target_account_for_every_column(table):
     """No column of the table is unclassified.
 
     This is the test that fires when features.py grows a column: it is neither
-    a known feature nor a known identity column, so someone has to decide which
-    it is rather than letting it drift silently into the model.
+    a known candidate nor a known identity column, so someone has to decide
+    which it is rather than letting it drift silently into reach of the model.
     """
-    claimed = set(model.FEATURES) | set(model.IDENTITY) | {model.TARGET}
+    claimed = set(model.CANDIDATES) | set(model.IDENTITY) | {model.TARGET}
     assert claimed == set(table.columns)
 
 
-def test_no_identity_column_is_also_a_feature():
-    assert not set(model.IDENTITY) & set(model.FEATURES)
+def test_the_model_only_reads_columns_the_table_offers():
+    assert set(model.FEATURES) <= set(model.CANDIDATES)
+
+
+def test_no_identity_column_is_also_a_candidate():
+    assert not set(model.IDENTITY) & set(model.CANDIDATES)
 
 
 def test_the_answer_is_not_a_feature():
@@ -34,13 +38,13 @@ def test_the_answer_is_not_a_feature():
 
 def test_matchweek_is_kept_out_because_played_already_says_it():
     assert "matchweek" in model.IDENTITY
-    assert "played" in model.FEATURES
+    assert "played" in model.CANDIDATES
 
 
 @pytest.mark.parametrize("banned", ["team", "opponent", "date", "season"])
 def test_the_model_cannot_see_who_or_when(banned):
     """Club names and dates would let it learn reputations and calendars."""
-    assert banned not in model.FEATURES
+    assert banned not in model.CANDIDATES
 
 
 # --- design_matrix --------------------------------------------------------
@@ -58,9 +62,15 @@ def test_design_matrix_rejects_a_missing_column(table):
 
 def test_design_matrix_rejects_nan(table):
     holed = table.copy()
-    holed.loc[0, "form_gf"] = np.nan
-    with pytest.raises(model.TableMismatch, match="form_gf"):
+    holed.loc[0, "sot_gap"] = np.nan
+    with pytest.raises(model.TableMismatch, match="sot_gap"):
         model.design_matrix(holed)
+
+
+def test_design_matrix_can_be_asked_for_other_columns(table):
+    """Ablation work needs to build a matrix from a column set of its own."""
+    picked = ["elo_expected", "form_gf"]
+    assert list(model.design_matrix(table, picked).columns) == picked
 
 
 def test_fit_rejects_a_table_with_no_answer(table):
@@ -84,11 +94,11 @@ def test_predictions_keep_the_table_index(table):
 
 
 def test_the_model_finds_the_planted_signal(table):
-    """elo_expected is the only column that means anything in the fixture.
+    """elo_expected is the strongest planted signal in the fixture.
 
     Asserted as a comparison rather than a threshold: what matters is that the
-    forest tracks the one real column far more closely than any of the 28
-    noise columns, not that it clears some particular correlation.
+    model tracks the real column far more closely than any of the noise
+    columns, not that it clears some particular correlation.
     """
     prob = model.predict(model.fit(table), table)
     tracking = {c: abs(np.corrcoef(prob, table[c])[0, 1]) for c in [*NOISE, "elo_expected"]}
@@ -104,23 +114,32 @@ def test_the_model_is_deterministic(table):
     pd.testing.assert_series_equal(a, b)
 
 
-def test_min_samples_leaf_is_not_left_at_one():
-    """A leaf of 1 memorises single matches and quotes them back as certainty."""
-    assert model.DEFAULT.min_samples_leaf >= 10
+def test_the_columns_are_scaled_before_fitting(table):
+    """Without scaling the penalty falls hardest on whichever column has the
+    largest units, which is an accident of measurement, not a decision."""
+    assert "standardscaler" in model.fit(table).named_steps
 
 
-# --- importance and persistence ------------------------------------------
+# --- what it learned, and persistence -------------------------------------
 
 
-def test_importance_covers_every_feature_and_sums_to_one(table):
-    ranking = model.importance(model.fit(table))
-    assert list(ranking["feature"].sort_values()) == sorted(model.FEATURES)
-    assert ranking["importance"].sum() == pytest.approx(1.0)
+def test_coefficients_report_every_feature(table):
+    learned = model.coefficients(model.fit(table))
+    assert list(learned["feature"].sort_values()) == sorted(model.FEATURES)
+    # odds_x is the coefficient as a multiplier, so the two must agree.
+    assert np.allclose(np.log(learned["odds_x"]), learned["coefficient"])
+
+
+def test_creating_more_than_the_opponent_raises_the_odds(table):
+    """The sign has to come out right, or the model is fitting something else."""
+    learned = model.coefficients(model.fit(table)).set_index("feature")
+    assert learned.loc["sot_gap", "coefficient"] > 0
+    assert learned.loc["elo_expected", "coefficient"] > 0
 
 
 def test_save_and_load_round_trips(table, tmp_path):
     fitted = model.fit(table)
-    path = model.save(fitted, tmp_path / "nested" / "forest.joblib")
+    path = model.save(fitted, tmp_path / "nested" / "model.joblib")
     reloaded = model.load(path)
 
     pd.testing.assert_series_equal(

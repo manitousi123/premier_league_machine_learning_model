@@ -206,9 +206,9 @@ def test_match_view_notices_when_a_fixture_loses_its_other_half(table):
 # --- end to end ----------------------------------------------------------
 
 
-def test_the_forest_beats_a_coin_flip_on_data_it_has_never_seen():
+def test_the_model_beats_a_coin_flip_on_data_it_has_never_seen():
     """The whole apparatus, run for real on the planted signal."""
     predictions = backtest.walk_forward(make_table(seasons=(1, 2, 3, 4)), [3, 4])
-    summary = backtest.summary(predictions).set_index("model")
-    assert summary.loc["forest", "auc"] > 0.65
-    assert summary.loc["forest", "log_loss"] < summary.loc["base_rate", "log_loss"]
+    summary = backtest.summary(predictions).set_index("contender")
+    assert summary.loc["model", "auc"] > 0.65
+    assert summary.loc["model", "log_loss"] < summary.loc["base_rate", "log_loss"]

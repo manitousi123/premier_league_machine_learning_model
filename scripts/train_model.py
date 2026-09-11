@@ -42,8 +42,9 @@ def main() -> int:
     seasons = sorted(table["season"].unique())
     print(f"{len(table):,} rows x {len(table.columns)} columns, "
           f"{config.season_label(seasons[0])} to {config.season_label(seasons[-1])}")
-    print(f"{len(model.FEATURES)} of them are features; "
+    print(f"{len(model.CANDIDATES)} of them a model could use, "
           f"{len(model.IDENTITY)} identify the row and 1 is the answer")
+    print(f"the shipped model reads {len(model.FEATURES)}: {', '.join(model.FEATURES)}")
 
     _rule(f"1. WALK-FORWARD  (model {model.DEFAULT.version})")
     for key, value in model.DEFAULT.as_dict().items():
@@ -75,16 +76,23 @@ def main() -> int:
     _rule("5. CALIBRATION - when it says 70%, does it happen 70% of the time?")
     print(backtest.calibration_table(predictions).round(4).to_string(index=False))
 
-    _rule("6. WHAT THE MODEL IS ACTUALLY USING")
-    print("Permutation importance on the most recent test season: how much log loss")
-    print("gets worse when one column is scrambled. At or below zero means unused.")
+    _rule("6. THE WHOLE MODEL, IN THREE NUMBERS")
+    print("Columns are scaled before fitting, so these are directly comparable.")
+    print("odds_x is the same number as a multiplier: how the odds of winning move")
+    print("for a one standard deviation rise in that column.")
     print()
-    last = seasons[-1]
-    fitted = model.fit(table[table["season"] < last])
-    ranking = backtest.permutation_ranking(fitted, table[table["season"] == last])
-    print(ranking.round(5).head(10).to_string(index=False))
-    dead = int((ranking["log_loss_cost"] <= 0).sum())
-    print(f"\n  {dead} of {len(ranking)} columns cost nothing to scramble.")
+    # The last *complete* season, not simply the newest: a season three
+    # matchweeks old has too few rows for scrambling a column to mean anything.
+    last = max(s for s in config.TEST_SEASONS if s in seasons)
+    trained = model.fit(table[table["season"] < last])
+    print(model.coefficients(trained).round(4).to_string(index=False))
+
+    print()
+    print("The check on those: how much log loss worsens when each column is")
+    print(f"scrambled on {config.season_label(last)}. At or below zero means unused.")
+    print()
+    ranking = backtest.permutation_ranking(trained, table[table["season"] == last])
+    print(ranking.round(5).to_string(index=False))
 
     _rule("7. THE FOUR-WAY CALL")
     matches = backtest.match_view(predictions)
@@ -107,7 +115,7 @@ def main() -> int:
 
     _rule("8. THE MODEL THAT GETS KEPT")
     final = model.fit(table)
-    out = model.save(final, config.MODELS / f"forest_{model.DEFAULT.version}.joblib")
+    out = model.save(final, config.MODELS / f"model_{model.DEFAULT.version}.joblib")
     predictions.to_parquet(config.PROCESSED / "backtest_predictions.parquet", index=False)
     print(f"  trained on all {len(table):,} rows -> {out.relative_to(config.ROOT)}")
     print("  predictions      -> data/processed/backtest_predictions.parquet")

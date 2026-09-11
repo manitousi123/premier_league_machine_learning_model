@@ -13,7 +13,7 @@ This is why an odd/even split was rejected: training on 2016 to predict 2015
 lets the model learn who was about to be good. It scores better and means less.
 
 **The bars.** Three of them, each fitted on the same training seasons as the
-forest so nothing gets an unfair look at the future:
+model so nothing gets an unfair look at the future:
 
 * ``base_rate`` — one number, the training win rate, for every row. The floor.
   Anything that fails to beat this has learned nothing at all.
@@ -69,7 +69,7 @@ def plea_only(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
     return fitted.predict_proba(test[["elo_expected"]])[:, 1]
 
 
-def forest(train: pd.DataFrame, test: pd.DataFrame, params=model.DEFAULT) -> np.ndarray:
+def fitted(train: pd.DataFrame, test: pd.DataFrame, params=model.DEFAULT) -> np.ndarray:
     """The model itself, retrained from scratch on each fold's training seasons."""
     return model.predict(model.fit(train, params), test).to_numpy()
 
@@ -78,7 +78,7 @@ CONTENDERS = {
     "base_rate": base_rate,
     "home_or_away": home_or_away,
     "plea_only": plea_only,
-    "forest": forest,
+    "model": fitted,
 }
 
 
@@ -156,7 +156,7 @@ def walk_forward(
         fold = test[["date", "season", "team", "opponent", "is_home", model.TARGET]].copy()
         for name, contender in contenders.items():
             fold[f"p_{name}"] = (
-                contender(train, test, params) if name == "forest" else contender(train, test)
+                contender(train, test, params) if name == "model" else contender(train, test)
             )
         folds.append(fold)
 
@@ -180,7 +180,7 @@ def summary(predictions: pd.DataFrame) -> pd.DataFrame:
     """Every contender scored over all test seasons at once."""
     actual = predictions[model.TARGET].to_numpy()
     rows = [
-        {"model": name, **score(actual, predictions[f"p_{name}"].to_numpy())}
+        {"contender": name, **score(actual, predictions[f"p_{name}"].to_numpy())}
         for name in _contender_columns(predictions)
     ]
     return pd.DataFrame(rows).sort_values("log_loss", ignore_index=True)
@@ -199,7 +199,7 @@ def by_season(predictions: pd.DataFrame, metric: str = "log_loss") -> pd.DataFra
 
 
 def calibration_table(
-    predictions: pd.DataFrame, name: str = "forest", bins: int = 10
+    predictions: pd.DataFrame, name: str = "model", bins: int = 10
 ) -> pd.DataFrame:
     """Promised versus delivered, bucket by bucket. The table behind the number."""
     frame = predictions[[model.TARGET]].copy()
@@ -256,7 +256,7 @@ def paired_test(predictions: pd.DataFrame, challenger: str, incumbent: str) -> d
     }
 
 
-def match_view(predictions: pd.DataFrame, name: str = "forest") -> pd.DataFrame:
+def match_view(predictions: pd.DataFrame, name: str = "model") -> pd.DataFrame:
     """The two rows of a fixture put back together into one verdict.
 
     Each match was scored twice — once from the home club's side, once from the
@@ -302,10 +302,10 @@ def permutation_ranking(
 ) -> pd.DataFrame:
     """How much worse the model gets when one column is shuffled into nonsense.
 
-    The honest counterpart to model.importance(): rather than counting how often
-    a column was split on, this destroys the column and measures the damage. A
+    The honest counterpart to a coefficient: rather than reading what the model
+    says it weighs, this destroys a column and measures what actually breaks. A
     feature that can be scrambled without hurting anything is not being used,
-    however often the trees reached for it.
+    whatever its coefficient claims.
     """
     result = permutation_importance(
         trained,

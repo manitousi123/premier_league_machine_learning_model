@@ -44,6 +44,8 @@ _OUTPUT_COLUMNS = [
     # rolling form, the opponent, going into this same match
     "opp_form_gf", "opp_form_ga", "opp_form_shots", "opp_form_sot",
     "opp_form_corners", "opp_form_points",
+    # how much more of the game this club has been creating than its opponent
+    "sot_gap", "shots_gap",
     # ratios, computed from the rolling form above
     "form_accuracy", "form_finishing", "opp_form_accuracy", "opp_form_finishing",
     # season to date, before this match
@@ -174,6 +176,26 @@ def _add_form(df: pd.DataFrame, window: int) -> pd.DataFrame:
         df[dst] = df[dst].fillna(fallback)
         df[f"opp_{dst}"] = df[f"opp_{dst}"].fillna(fallback)
 
+    return df
+
+
+def _add_gaps(df: pd.DataFrame) -> pd.DataFrame:
+    """How much more of the game this club has been creating than its opponent.
+
+    Shots on target is the one thing PLEA structurally cannot see. PLEA is
+    built from goals, and goals are the lucky part of football: a club creating
+    far more than it converts carries a rating that is too low, and it tends to
+    come back. Shot counts are the repeatable half of the same story, which is
+    most of what expected goals would have given us had it been obtainable.
+
+    Taken as a difference rather than as two columns because the two only mean
+    anything against each other - twelve shots is good against Liverpool and
+    poor against a side camped in its own box - and because the table holds two
+    mirrored rows per fixture, so a difference makes the two perspectives exact
+    negatives of one another rather than two loosely related numbers.
+    """
+    df["sot_gap"] = df["form_sot"] - df["opp_form_sot"]
+    df["shots_gap"] = df["form_shots"] - df["opp_form_shots"]
     return df
 
 
@@ -409,6 +431,7 @@ def build_features(results: pd.DataFrame, history: pd.DataFrame) -> pd.DataFrame
 
     df = _add_rest_days(df)
     df = _add_form(df, config.FORM_WINDOW)
+    df = _add_gaps(df)
     df = _add_ratios(df)
     df = _add_priors(df)
     df = _add_season_to_date(df)

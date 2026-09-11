@@ -4,12 +4,14 @@ A model that looks at an upcoming Premier League fixture and says whether a team
 will win it — yes or no — along with how confident it is.
 
 It works from two things: a rating for every club, built by replaying every match
-since 2010, and how each side has been playing lately. Those feed a model trained
-on sixteen seasons of results, which returns a probability for each team and one call.
+since 2010, and how many chances each side has been creating lately. Those feed a
+model trained on sixteen seasons of results, which returns a probability for each
+team and one call.
 
-The ratings, the training table and the model are all built, and the model has
-been tested against thirteen seasons it never saw. The result was not the one
-we wanted — see [What the backtest found](#what-the-backtest-found).
+Tested against thirteen seasons it never saw, it beats the ratings it is built
+from and covers 89% of the distance from knowing nothing to matching a
+bookmaker. It took cutting the model down from forty-two columns to three to get
+there — see [What the backtest found](#what-the-backtest-found).
 
 ## Running it
 
@@ -155,125 +157,151 @@ Same match, both sides, and the two changes cancel exactly. That's step 4.
 
 ## What the backtest found
 
-The honest answer: **the model is not yet better than the ratings it is built
-from.** It is not worse either. It is the same, and that is a real result rather
-than a bug to be fixed by trying harder.
+The model beats PLEA — but only after being cut down from forty-two columns to
+three, and from a random forest to a logistic regression. Almost everything
+tried along the way failed, and the failures were more informative than the win.
 
-### How it was tested
+### How it is tested
 
 Walk-forward. Train on every season before season S, predict S, move to S+1 —
 thirteen rounds, 9,880 predictions, none of them made by a model that had seen
-a single match played after the one it was predicting. Three bars to clear:
+a match played after the one it was predicting.
 
-| Contender | What it knows | Accuracy | Log loss | Brier | AUC | Calibration |
-|---|---|---|---|---|---|---|
-| `plea_only` | one number: PLEA's expectation | 68.8% | **0.5855** | 0.2004 | 0.729 | 0.0105 |
-| `forest` | the whole table | 68.8% | 0.5866 | 0.2006 | 0.728 | 0.0104 |
-| `home_or_away` | the home and away win rates | 61.8% | 0.6575 | 0.2325 | 0.565 | 0.0245 |
-| `base_rate` | one number, the win rate | 61.8% | 0.6655 | 0.2363 | 0.495 | 0.0132 |
+| Contender | What it knows | Accuracy | Log loss | AUC | Calibration |
+|---|---|---|---|---|---|
+| **`model`** | PLEA, plus both shot gaps | **69.3%** | **0.5830** | 0.732 | 0.0109 |
+| `plea_only` | one number: PLEA's expectation | 68.8% | 0.5855 | 0.729 | 0.0105 |
+| `home_or_away` | the home and away win rates | 61.8% | 0.6575 | 0.565 | 0.0245 |
+| `base_rate` | one number, the win rate | 61.8% | 0.6655 | 0.495 | 0.0132 |
 
 Log loss is the column that matters — accuracy throws away the difference
 between "60% sure" and "99% sure", and a model that simply never predicts an
 away win still scores 62%.
 
-### Is the gap real?
-
-No. Comparing the two models match by match rather than on their averages:
+Compared match by match rather than on the averages:
 
 ```
-forest vs plea_only    -0.00102  +/- 0.00137    z = -0.75   noise
-home_or_away           -0.07191  +/- 0.00449    z = -16.00  REAL
-base_rate              -0.07997  +/- 0.00477    z = -16.76  REAL
+model          vs plea_only   +0.00252  +/- 0.00095    z = +2.66   REAL
+home_or_away   vs plea_only   -0.07191  +/- 0.00449    z = -16.00  REAL
+base_rate      vs plea_only   -0.07997  +/- 0.00477    z = -16.76  REAL
 ```
 
-The test has no trouble seeing the baselines lose by a mile. It sees nothing
-between the forest and PLEA. Every hyperparameter tried — leaf sizes from 10 to
-200, three settings of `max_features` — landed within 0.012 log loss of every
-other, and logistic regression and gradient boosting both landed there too. The
-ceiling is not the model.
+### The one thing that worked: shots on target
 
-### Why
+PLEA is built from goals, and goals are the lucky part of football. A club
+creating far more than it converts carries a rating that is too low, and it
+tends to come back.
 
-Scrambling one column at a time and measuring the damage says it plainly:
+Testing that directly — does PLEA's error line up with anything? — every
+goal-based measure of form came out as noise, and one column did not:
 
 ```
-elo_expected      0.0616      <- everything
-elo_gap           0.0213      <- the same information, restated
-opp_elo           0.0055
-own_elo           0.0039
-is_home           0.0030
-everything else  <=0.0028     <- 22 of 40 columns cost nothing at all
+form_gf      +0.0107   z = +1.06   noise
+form_ga      -0.0080   z = -0.79   noise
+form_points  -0.0022   z = -0.21   noise
+form_sot     +0.0403   z = +4.01   REAL      <- shots on target
 ```
 
-The diagnosis is that **form is not opponent-adjusted**. `form_gf = 1.4` means
-something completely different depending on whether the last five matches were
-against Manchester City or against Burnley. PLEA already knows how good a club
-is, so the only genuinely new content in a raw five-match average is *who they
-happened to play* — which is schedule noise, not skill. The model correctly
-declines to use it.
+Two details matter. It has to be a **gap** — a club's own shot count partly
+measures who it happened to play, and only the difference against the opponent
+cancels that out. And the effect is small enough that no single season can see
+it: scramble the column on one season and the damage is within noise. Only
+across thirteen seasons does it show up.
 
-That is a flaw in the features, not in the model. The 25 form and season columns
-were built to describe a club; they mostly describe its fixture list.
+This is most of what expected goals would have given us, from columns that were
+already sitting in the data.
 
-### What does work
+### Why the model got smaller
 
-PLEA is well calibrated, and so is the forest built on it. Across the thirteen
-test seasons, sorted into ten buckets by confidence:
+The first version was a random forest reading all forty-two columns. Measured:
 
-| Predicted | Actually won | Gap |
-|---|---|---|
-| 10.9% | 12.0% | −1.2 |
-| 22.3% | 24.2% | −1.9 |
-| 38.2% | 38.1% | +0.1 |
-| 51.8% | 52.4% | −0.7 |
-| 75.6% | 73.2% | +2.4 |
+| | Log loss |
+|---|---|
+| logistic regression, 3 columns | **0.5830** |
+| PLEA alone | 0.5855 |
+| random forest, 42 columns | 0.5866 |
+| random forest, the same 3 columns | 0.5892 |
 
-When it says 38%, it happens 38% of the time. Rejoining the two perspectives
-into one verdict gives the right call on **61.9% of 4,940 matches**, and there
-was not a single fixture where the home and away probabilities added to more
-than 1 — the model never contradicted itself.
+The forest loses to the regression (z = +2.18), and the *same three columns* in
+a forest are worse than doing nothing at all (z = −2.19). The relationship here
+is smooth — more shots on target than your opponent, better chance of winning.
+A regression spends one coefficient on that. A forest has to build the same
+curve out of staircase steps, and on a signal this weak the noise in the steps
+costs more than the flexibility is worth.
 
-### Stakes: a negative result
+The whole model is now three numbers, which is the other thing a forest could
+never give you:
 
-The first attempt at closing the May gap was **stakes** — points from the title,
-from the top four, from safety, and whether each is still mathematically
-reachable. Eleven columns, on the theory that a club already safe or already
-relegated stops trying.
+```
+elo_expected   0.7873    odds x2.20
+shots_gap      0.1321    odds x1.14
+sot_gap        0.0849    odds x1.09
+```
 
-**It did not work.** Log loss went from 0.5867 to 0.5866. The theory itself
-turns out not to be in the data:
+### Everything that did not work
 
-* only **432 of 9,880** rows have nothing at stake — it is a rare situation
-* those clubs underperform PLEA by about **one percentage point**
-* the sharpest version of the test, "I still care and they do not" against the
-  reverse, comes out at **z = +0.49**
+**Twenty-four of the original twenty-nine columns.** Dropping form, the
+opponent's form, the ratios, the season-to-date figures or the fixture details
+changed nothing detectable. Dropping PLEA was the only removal that did real
+damage (z = −4.5).
 
-So the May deficit is probably not motivation. The likelier explanation is team
-news — Bet365 knows the starting eleven an hour before kickoff, who is rested,
-injured, or being saved for a cup final. That is information we cannot get, and
-it is a wall rather than a puzzle.
+**Stakes** — points from the title, from the top four, from safety, and whether
+each is still mathematically reachable. Built on the theory that a club already
+safe or already relegated stops trying. Only 432 of 9,880 rows have nothing at
+stake, those clubs underperform by about one percentage point, and the sharpest
+form of the test comes out at z = +0.49. The columns are kept but earn nothing.
 
-The columns are kept. They are leak-free, cost nothing to carry, and another
-season of data may yet push them over the line — but they earn nothing today.
+**Opponent-adjusted form** — goals scored measured against what those particular
+opponents normally concede. The adjusted column turned out to be 92% identical
+to the raw one, because Premier League defences all concede between roughly 0.8
+and 2.0 a game and that spread is tiny next to the randomness in five matches.
+Swapping it in changed nothing (z = −0.07). Reverted.
+
+### How far from the ceiling?
+
+Bet365's closing odds, scored on the same 9,880 rows with the bookmaker's
+margin stripped out, reach **0.5733**. That is the honest ceiling — a number
+set by people who know the team news.
+
+```
+ignorance  0.6655 ──────────────────────────────────────► 0.5733  market
+                  ├───────────────────────────────────┤
+                            the model covers 89%
+```
+
+The gap is not spread evenly. From November to March we are level with the
+market; almost all of the deficit sits in matchweeks 1–3, where PLEA's ratings
+are stale after a summer of transfers, and 31–38, where the likeliest
+explanation is team news rather than motivation — who is rested, injured, or
+being saved for a cup final. That is information we cannot get.
+
+### What works, and what the calls look like
+
+Calibration is good: sorted into ten buckets by confidence, what the model
+promises is close to what happens.
+
+| Predicted | Actually won |
+|---|---|
+| 9.8% | 10.3% |
+| 26.5% | 26.7% |
+| 45.4% | 43.6% |
+| 73.4% | 73.7% |
+
+Rejoining both perspectives gives the right verdict on **62.4% of 4,940
+matches**, and not one fixture had the home and away probabilities adding to
+more than 1 — the model never contradicted itself.
 
 ### Next
 
-Three things worth trying, in order of how much they should move the number:
+Three things left, in order of how much they should move the number:
 
-1. **Opponent-adjusted form.** Goals scored relative to what those specific
-   opponents usually concede. This is the one that addresses the diagnosis
-   above, and the only one on this list that adds information PLEA lacks.
-2. **Separate attack and defence ratings.** PLEA collapses a club into a single
-   number, so a side that wins 4–3 every week and one that wins 1–0 every week
-   look identical to it — despite being very different match-ups.
-3. **PLEA v2.** `home_adv` is set to 65 but measures ~47.9 in the data, and the
+1. **PLEA v2.** `home_adv` is set to 65 but measures ~47.9 in the data, and the
    era breakdown is stark: 55 points (2010–16), 58 (2016–20), **−8 (2020/21)**,
-   43 (2021–26). Frozen deliberately until the feature work is done, so that one
-   change is not being evaluated through another.
-
-For scale: bookmakers land somewhere near 0.55 log loss on the same question.
-At 0.586 the gap left to close is real but not enormous, and roughly half of a
-football match is genuinely not predictable from anything.
+   43 (2021–26). The one remaining change with evidence already gathered.
+2. **Separate attack and defence ratings.** PLEA gives a club one number, so a
+   side that wins 4–3 every week and one that wins 1–0 look identical to it.
+3. **A better August.** Matchweeks 1–3 are the largest remaining hole, and
+   PLEA's flat 20% pull toward 1500 each summer is a blunt instrument.
 
 ## Edge cases in the training table
 
