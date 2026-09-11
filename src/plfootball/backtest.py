@@ -20,8 +20,8 @@ forest so nothing gets an unfair look at the future:
 * ``home_or_away`` — two numbers, the training win rate at home and away.
   "Always back the home side", written as a probability.
 * ``plea_only`` — PLEA's expected points share mapped to a win probability by a
-  one-column logistic regression. The real bar: if 29 columns cannot beat one
-  rating, the other 28 are not paying rent.
+  one-column logistic regression. The real bar: if the whole table cannot beat
+  one rating, the rest of the columns are not paying rent.
 
 **What is measured.** Accuracy is reported because people ask for it, but it is
 the least useful number here — it throws away the difference between "60% sure"

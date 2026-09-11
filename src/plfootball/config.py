@@ -67,6 +67,19 @@ LEAGUE_AVERAGE_FORM = {
 
 MAX_REST_DAYS = 14         # beyond a fortnight, more rest stops meaning anything
 
+# --- stakes: what a club still has to play for ---------------------------
+# PLEA knows how good a club is but not whether it still cares. A side already
+# safe, already relegated, or already champion plays differently in May, and
+# that is where the ratings lose most ground to the betting market.
+
+SEASON_MATCHES = 38     # matches each club plays
+SEASON_FIXTURES = 380   # matches in the whole division: 20 clubs x 38 / 2
+
+TITLE_POSITION = 1        # the club whose points you must reach to win it
+TOP4_POSITION = 4         # Champions League cut-off
+SAFETY_POSITION = 17      # the last club above the drop
+RELEGATION_POSITION = 18  # the first club below it
+
 # --- covid: matches played to empty or near-empty grounds ---
 # 2019/20 resumed behind closed doors on 17 Jun 2020; crowds only returned for
 # the last two matchweeks of 2020/21. 452 matches, and home advantage went to

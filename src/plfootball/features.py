@@ -47,7 +47,11 @@ _OUTPUT_COLUMNS = [
     # ratios, computed from the rolling form above
     "form_accuracy", "form_finishing", "opp_form_accuracy", "opp_form_finishing",
     # season to date, before this match
-    "played", "ppg", "position",
+    "played", "ppg", "position", "points",
+    # what is still at stake, for this club and for the opponent
+    "points_from_title", "points_from_top4", "points_from_safety",
+    "title_live", "top4_live", "relegation_live", "stakes_live",
+    "opp_points_from_top4", "opp_points_from_safety", "opp_stakes_live",
     # the answer
     "target",
 ]
@@ -199,8 +203,9 @@ def _add_ratios(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _add_position(df: pd.DataFrame) -> pd.DataFrame:
-    """League position before each match: points, then goal difference, then goals for.
+def _add_league_context(df: pd.DataFrame) -> pd.DataFrame:
+    """The league table as it stood before each match: position, points, and the
+    points held by the clubs on the lines that matter.
 
     Built once per season from a date x club grid of that day's points and
     goals. Cumulative-summing down the date axis and then shifting by one date
@@ -208,35 +213,111 @@ def _add_position(df: pd.DataFrame) -> pd.DataFrame:
     match played that day - are excluded from the standings entering it. Same-
     day fixtures are simultaneous; none of them has "already happened" from any
     other's point of view.
+
+    Alongside each club's own position it records the points on the title,
+    top-four, safety and relegation lines that day, which is everything
+    `_add_stakes` needs to work out what is still reachable.
     """
     daily = (
         df.groupby(["season", "date", "team"], as_index=False)
-        .agg(pts=("football_points", "sum"), gf=("gf", "sum"), ga=("ga", "sum"))
+        .agg(
+            pts=("football_points", "sum"),
+            gf=("gf", "sum"),
+            ga=("ga", "sum"),
+            games=("football_points", "size"),
+        )
     )
+
+    lines = {
+        "pts_title": config.TITLE_POSITION,
+        "pts_top4": config.TOP4_POSITION,
+        "pts_safety": config.SAFETY_POSITION,
+        "pts_drop": config.RELEGATION_POSITION,
+    }
 
     tables = []
     for season, block in daily.groupby("season", sort=True):
-        wide = block.pivot(index="date", columns="team", values=["pts", "gf", "ga"])
+        wide = block.pivot(index="date", columns="team", values=["pts", "gf", "ga", "games"])
         wide = wide.sort_index().fillna(0.0)
         before = wide.cumsum().shift(1).fillna(0.0)
         goal_diff = before["gf"] - before["ga"]
 
         for match_date in before.index:
             standing = pd.DataFrame({
-                "pts": before["pts"].loc[match_date],
+                "table_points": before["pts"].loc[match_date],
                 "gd": goal_diff.loc[match_date],
                 "gf": before["gf"].loc[match_date],
-            }).sort_values(["pts", "gd", "gf"], ascending=False, kind="stable")
+                "table_played": before["games"].loc[match_date],
+            }).sort_values(["table_points", "gd", "gf"], ascending=False, kind="stable")
 
-            tables.append(pd.DataFrame({
-                "season": season,
-                "date": match_date,
-                "team": standing.index,
-                "position": range(1, len(standing) + 1),
-            }))
+            # A row per club, plus that day's snapshot of the four dividing
+            # lines - the same four numbers repeated down the column, because
+            # every club is looking at the same table.
+            points = standing["table_points"].to_numpy()
+            played = standing["table_played"].to_numpy()
+            slot = {name: min(pos, len(points)) - 1 for name, pos in lines.items()}
 
-    positions = pd.concat(tables, ignore_index=True)
-    return df.merge(positions, on=["season", "date", "team"], how="left")
+            tables.append(
+                standing.assign(
+                    season=season,
+                    date=match_date,
+                    team=standing.index,
+                    position=range(1, len(standing) + 1),
+                    played_drop=played[slot["pts_drop"]],
+                    **{name: points[index] for name, index in slot.items()},
+                ).reset_index(drop=True)
+            )
+
+    context = pd.concat(tables, ignore_index=True)
+    keep = [
+        "season", "date", "team", "position", "table_points", "table_played",
+        "played_drop", *lines,
+    ]
+    return df.merge(context[keep], on=["season", "date", "team"], how="left")
+
+
+def _add_stakes(df: pd.DataFrame) -> pd.DataFrame:
+    """What each club still has to play for, going into this match.
+
+    PLEA knows how good a club is. It has no idea whether that club still
+    cares, and a side already safe, already relegated or already champion plays
+    a very different game in May - which is exactly where the ratings lose most
+    ground to the betting market.
+
+    "Live" here means *reachable on points*: the club could still draw level
+    with whoever holds that line if it won everything left. That is a necessary
+    condition for the real thing rather than the whole of it - proper
+    mathematical elimination depends on who still plays whom - but it needs no
+    fixture list and it is honest about what it measures.
+
+    At matchweek one every club has nought points, so every gap is zero and
+    everything is live. That is correct, and needs no special case.
+    """
+    max_gain = 3 * (config.SEASON_MATCHES - df["table_played"])
+
+    df["points"] = df["table_points"]
+    df["points_from_title"] = df["pts_title"] - df["table_points"]
+    df["points_from_top4"] = df["pts_top4"] - df["table_points"]
+    # Negative means this club is above the line looking down.
+    df["points_from_safety"] = df["pts_safety"] - df["table_points"]
+
+    df["title_live"] = (df["points_from_title"] <= max_gain).astype(int)
+    df["top4_live"] = (df["points_from_top4"] <= max_gain).astype(int)
+
+    # Relegation runs the other way: not "can I get down to them" but "can they
+    # still climb up to me", so it is the bottom club's remaining games that count.
+    drop_ceiling = df["pts_drop"] + 3 * (config.SEASON_MATCHES - df["played_drop"])
+    df["relegation_live"] = (drop_ceiling >= df["table_points"]).astype(int)
+
+    df["stakes_live"] = df[["title_live", "top4_live", "relegation_live"]].max(axis=1)
+
+    # The opponent's situation matters as much as our own: a dead rubber for
+    # one side is not a dead rubber if the other is still fighting to stay up.
+    mine = ["points_from_safety", "points_from_top4", "stakes_live"]
+    opponent = df[["date", "team", *mine]].rename(
+        columns={"team": "opponent", **{c: f"opp_{c}" for c in mine}}
+    )
+    return df.merge(opponent, on=["date", "opponent"], how="left")
 
 
 def _season_end_table(df: pd.DataFrame) -> pd.DataFrame:
@@ -307,9 +388,9 @@ def _add_season_to_date(df: pd.DataFrame) -> pd.DataFrame:
         df["played"] + config.PPG_SHRINKAGE
     )
 
-    df = _add_position(df)
+    df = _add_league_context(df)
     df["position"] = df["position"].where(df["played"] > 0, df["prior_position"])
-    return df
+    return _add_stakes(df)
 
 
 def build_features(results: pd.DataFrame, history: pd.DataFrame) -> pd.DataFrame:

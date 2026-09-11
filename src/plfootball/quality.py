@@ -46,15 +46,33 @@ def check_results(results: pd.DataFrame, *, complete_seasons_only: bool = True) 
     checks: list[Check] = []
 
     counts = results.groupby("season").size()
-    complete = counts[counts == 380].index
-    bad = counts[counts != 380]
+
+    # The newest season is allowed to be unfinished — predicting matches that
+    # have not been played is the entire point, so there will normally be a
+    # season in progress. Only one ever can be, and it is always the latest, so
+    # every season before it still has to be complete.
+    latest = int(counts.index.max())
+    in_progress = counts.loc[latest] < config.SEASON_FIXTURES
+    settled = counts.drop(index=latest) if in_progress else counts
+
+    bad = settled[settled != config.SEASON_FIXTURES]
     checks.append(
         Check(
-            "380 matches per season",
+            f"{config.SEASON_FIXTURES} matches per finished season",
             bad.empty,
-            "all seasons complete" if bad.empty else f"wrong count: {bad.to_dict()}",
+            "all complete" if bad.empty else f"wrong count: {bad.to_dict()}",
         )
     )
+    if in_progress:
+        checks.append(
+            Check(
+                f"{config.season_label(latest)} is under way",
+                True,
+                f"{counts.loc[latest]} of {config.SEASON_FIXTURES} matches played",
+            )
+        )
+
+    complete = counts[counts == config.SEASON_FIXTURES].index
 
     scope = results[results["season"].isin(complete)] if complete_seasons_only else results
 

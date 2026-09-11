@@ -168,7 +168,7 @@ a single match played after the one it was predicting. Three bars to clear:
 | Contender | What it knows | Accuracy | Log loss | Brier | AUC | Calibration |
 |---|---|---|---|---|---|---|
 | `plea_only` | one number: PLEA's expectation | 68.8% | **0.5855** | 0.2004 | 0.729 | 0.0105 |
-| `forest` | all 29 columns | 68.8% | 0.5867 | 0.2006 | 0.728 | 0.0096 |
+| `forest` | the whole table | 68.8% | 0.5866 | 0.2006 | 0.728 | 0.0104 |
 | `home_or_away` | the home and away win rates | 61.8% | 0.6575 | 0.2325 | 0.565 | 0.0245 |
 | `base_rate` | one number, the win rate | 61.8% | 0.6655 | 0.2363 | 0.495 | 0.0132 |
 
@@ -181,7 +181,7 @@ away win still scores 62%.
 No. Comparing the two models match by match rather than on their averages:
 
 ```
-forest vs plea_only    -0.00118  +/- 0.00132    z = -0.89   noise
+forest vs plea_only    -0.00102  +/- 0.00137    z = -0.75   noise
 home_or_away           -0.07191  +/- 0.00449    z = -16.00  REAL
 base_rate              -0.07997  +/- 0.00477    z = -16.76  REAL
 ```
@@ -197,10 +197,12 @@ ceiling is not the model.
 Scrambling one column at a time and measuring the damage says it plainly:
 
 ```
-elo_expected      0.0365      <- everything
-elo_gap           0.0042      <- the same information, restated
-is_home           0.0011
-everything else  <=0.0006     <- 12 of 29 columns cost nothing at all
+elo_expected      0.0616      <- everything
+elo_gap           0.0213      <- the same information, restated
+opp_elo           0.0055
+own_elo           0.0039
+is_home           0.0030
+everything else  <=0.0028     <- 22 of 40 columns cost nothing at all
 ```
 
 The diagnosis is that **form is not opponent-adjusted**. `form_gf = 1.4` means
@@ -230,6 +232,29 @@ When it says 38%, it happens 38% of the time. Rejoining the two perspectives
 into one verdict gives the right call on **61.9% of 4,940 matches**, and there
 was not a single fixture where the home and away probabilities added to more
 than 1 — the model never contradicted itself.
+
+### Stakes: a negative result
+
+The first attempt at closing the May gap was **stakes** — points from the title,
+from the top four, from safety, and whether each is still mathematically
+reachable. Eleven columns, on the theory that a club already safe or already
+relegated stops trying.
+
+**It did not work.** Log loss went from 0.5867 to 0.5866. The theory itself
+turns out not to be in the data:
+
+* only **432 of 9,880** rows have nothing at stake — it is a rare situation
+* those clubs underperform PLEA by about **one percentage point**
+* the sharpest version of the test, "I still care and they do not" against the
+  reverse, comes out at **z = +0.49**
+
+So the May deficit is probably not motivation. The likelier explanation is team
+news — Bet365 knows the starting eleven an hour before kickoff, who is rested,
+injured, or being saved for a cup final. That is information we cannot get, and
+it is a wall rather than a puzzle.
+
+The columns are kept. They are leak-free, cost nothing to carry, and another
+season of data may yet push them over the line — but they earn nothing today.
 
 ### Next
 

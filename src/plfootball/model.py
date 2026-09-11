@@ -53,7 +53,11 @@ FEATURES = [
     # ratios the tree would otherwise have to approximate one split at a time
     "form_accuracy", "form_finishing", "opp_form_accuracy", "opp_form_finishing",
     # season to date
-    "played", "ppg", "position",
+    "played", "ppg", "position", "points",
+    # what is still at stake - the one thing here PLEA structurally cannot know
+    "points_from_title", "points_from_top4", "points_from_safety",
+    "title_live", "top4_live", "relegation_live", "stakes_live",
+    "opp_points_from_top4", "opp_points_from_safety", "opp_stakes_live",
 ]
 
 
