@@ -307,6 +307,32 @@ gives up than its opponent does, which nothing in the model can otherwise see.
 Strong against the residuals (z = -3.71 for the combined matchup) and dead on
 arrival out of sample, worse than nothing on the tuning seasons.
 
+**A better August.** Carried as the last untested idea, on the grounds that
+matchweeks 1-3 were the largest remaining hole. Measured against the market
+properly, they are not:
+
+| | our log loss | market | our deficit | vs our own midseason | market vs its own |
+|---|---|---|---|---|---|
+| mw 1-3 | 0.5881 | 0.5770 | 0.0111 | +0.0038 | -0.0008 |
+| mw 21-30 | 0.5843 | 0.5778 | 0.0065 | 0.0000 | 0.0000 |
+| **mw 31-38** | 0.5853 | **0.5690** | **0.0163** | +0.0010 | **-0.0088** |
+
+August costs us 0.0038 against our own midseason standard, over 8% of the rows
+— perhaps 0.0003 overall if it were fixed perfectly, which is an order of
+magnitude below what the paired test can see. And the model is not even
+over-confident there: the slope of outcomes on predictions is 0.989 in
+matchweeks 1-3, closer to perfect than midseason's 0.945.
+
+Both knobs were swept anyway. `carry_over` is best at its current 0.80 and
+`promoted_elo` at its current 1400, on the tuning seasons and on all thirteen;
+every alternative tried is worse.
+
+**The run-in is the real hole, and it is not ours.** In matchweeks 31-38 our
+log loss is flat against our own midseason standard while the market's improves
+by 0.0088. They are not beating us there because we degrade. They are beating
+us because they get better — which is what team news looks like from the
+outside.
+
 ### How far from the ceiling?
 
 Bet365's closing odds, scored on the same 9,880 rows with the bookmaker's
@@ -354,17 +380,25 @@ deficit sits almost entirely in matchweeks 1–3 and 31–38 and vanishes in
 midwinter. No re-encoding of results will recover it, because it is not in the
 results.
 
-One idea is left that has not been tested:
+Eight ideas tried, one worked. The list is now empty, and that is a result
+rather than a stopping point: the remaining deficit has been traced to a
+specific window, matchweeks 31-38, and to a specific cause, the market getting
+better there rather than us getting worse. That is team news, and it is not in
+the results.
 
-- **A better August.** Matchweeks 1–3 are the largest remaining hole. PLEA
-  pulls every club 20% toward 1500 each summer regardless of what actually
-  changed at the club, which is blunt but is at least aimed at the right gap.
+What would actually move the number, in order of how unlikely it is to be
+available:
 
-Beyond that, the honest options are to accept the ceiling or to find a source
-of team-sheet data. The method that has repaid the effort every time is the
-same one: ask **what the model currently gets wrong**, check which columns line
-up with those mistakes, and only then build. It found shots on target, and it
-correctly called six failures before the work was spent on them.
+1. **Team sheets** — who is fit, rested, or being saved for a cup final,
+   known an hour before kickoff. This is the whole remaining gap.
+2. **Expected goals from a usable source.** FBref sits behind a bot
+   challenge and Understat's robots.txt disallows crawling, so neither is
+   available to us. Shot counts recover most of it and already went in.
+
+The method that repaid the effort every time is the same one: ask **what the
+model currently gets wrong**, check which columns line up with those mistakes,
+and only then build. It found shots on target, and it correctly called seven
+failures before the work was spent on them.
 
 ## Edge cases in the training table
 
