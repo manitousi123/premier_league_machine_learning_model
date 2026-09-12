@@ -131,3 +131,33 @@ def test_ratings_as_of_respects_the_cutoff():
 
     assert early.loc["Arsenal", "elo"] < late.loc["Arsenal", "elo"]
     assert early.loc["Arsenal", "played"] == 1
+
+
+# --- matches played to an empty ground -----------------------------------
+
+
+def _expectation(date, params=plea.DEFAULT):
+    """What PLEA expected of the home side in a single match on this date."""
+    history = plea.run(pd.DataFrame([_match(date, 2021, "Arsenal", "Chelsea", 1, 0)]), params)
+    return history.set_index("team").loc["Arsenal", "elo_expected"]
+
+
+def test_an_empty_ground_gets_no_home_advantage():
+    """Two equally rated clubs, nobody watching: it should be a coin flip."""
+    assert _expectation("2020-10-03") == pytest.approx(0.5)
+
+
+def test_a_full_ground_still_does():
+    assert _expectation("2019-10-03") > 0.5
+
+
+def test_the_covid_window_has_two_ends():
+    """Just outside it on either side, home advantage is back."""
+    assert _expectation("2020-06-16") > 0.5   # day before the restart
+    assert _expectation("2021-05-17") > 0.5   # day after crowds returned
+
+
+def test_the_two_advantages_are_separate_knobs():
+    """Setting them equal must reproduce the old flat behaviour exactly."""
+    flat = PleaParams(home_adv=65.0, no_crowd_home_adv=65.0)
+    assert _expectation("2020-10-03", flat) == pytest.approx(_expectation("2019-10-03", flat))

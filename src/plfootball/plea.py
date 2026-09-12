@@ -21,14 +21,42 @@ from dataclasses import asdict, dataclass
 
 import pandas as pd
 
+from . import config
+
 
 @dataclass(frozen=True)
 class PleaParams:
     """Tuning knobs. Change these and you have a new version — record which."""
 
-    version: str = "v1"
+    version: str = "v2"
     k: float = 20.0  # reaction speed; higher is jumpier
-    home_adv: float = 65.0  # rating points handed to the home side
+    # Rating points handed to the home side.
+    #
+    # 65 looks wrong and is not. Over 6,110 matches the home side takes 0.5685
+    # of the points, and the rating gap that *directly* implies is 47.9 — which
+    # is why this was carried for three sessions as an obvious fix. It is not.
+    # Swept properly against out-of-sample log loss, 48 makes the model worse
+    # (z = -2.79 on the tuning seasons, -1.43 across all thirteen) and nothing
+    # beats 65 by a detectable margin.
+    #
+    # The reason is that home_adv is a knob inside a feedback loop, not an
+    # estimate of a quantity. The ratings adapt around whatever it is set to,
+    # and the model downstream re-fits its own intercept and slope on
+    # elo_expected anyway — so PLEA being internally biased costs nothing that
+    # the regression does not simply absorb. 47.9 answers a real question. It
+    # is not the question this parameter asks.
+    home_adv: float = 65.0
+    # Behind closed doors the advantage did not shrink, it vanished: 452
+    # covid-era matches split 0.5022 against 0.5738 for the rest, a difference
+    # real at z = 2.9 as a plain measurement of what happened.
+    #
+    # Its effect on predictions is a different matter and much weaker — even
+    # restricted to the closed-door matches it only reaches z = +1.42, because
+    # one season in thirteen cannot carry a result on its own. It is kept
+    # because the cause is established even where the benefit is not, and
+    # because those ratings feed forward: without it the covid season leaves a
+    # permanent dent in every rating that carries out of it.
+    no_crowd_home_adv: float = 0.0
     start_elo: float = 1500.0  # everyone, August 2010
     promoted_elo: float = 1400.0  # a club arriving from the Championship
     carry_over: float = 0.80  # between seasons: pull 20% back towards start
@@ -94,6 +122,9 @@ def run(results: pd.DataFrame, params: PleaParams = DEFAULT) -> pd.DataFrame:
 
     results = results.sort_values(["date", "kickoff"], kind="stable", na_position="first")
 
+    no_crowd_from = pd.Timestamp(config.NO_CROWD_START)
+    no_crowd_to = pd.Timestamp(config.NO_CROWD_END)
+
     ratings: dict[str, float] = {}
     played_last_season: set[str] = set()
     previous_season: int | None = None
@@ -111,7 +142,11 @@ def run(results: pd.DataFrame, params: PleaParams = DEFAULT) -> pd.DataFrame:
             home, away = match.home_team, match.away_team
             home_elo, away_elo = ratings[home], ratings[away]
 
-            home_expected = expected_score(home_elo, away_elo, params.home_adv)
+            playing_to_an_empty_ground = no_crowd_from <= match.date <= no_crowd_to
+            advantage = (
+                params.no_crowd_home_adv if playing_to_an_empty_ground else params.home_adv
+            )
+            home_expected = expected_score(home_elo, away_elo, advantage)
             gd = match.home_goals - match.away_goals
             home_actual = 1.0 if gd > 0 else (0.5 if gd == 0 else 0.0)
 

@@ -9,7 +9,7 @@ model trained on sixteen seasons of results, which returns a probability for eac
 team and one call.
 
 Tested against thirteen seasons it never saw, it beats the ratings it is built
-from and covers 89% of the distance from knowing nothing to matching a
+from and covers 90% of the distance from knowing nothing to matching a
 bookmaker. It took cutting the model down from forty-two columns to three to get
 there — see [What the backtest found](#what-the-backtest-found).
 
@@ -80,7 +80,7 @@ Burnley  1321.0 → 1329.8   (+8.8)
 Arsenal lose points from a draw, because 0.5 is well below the 0.938 expected of
 them. Burnley gain from not losing. That's the system working as intended.
 
-### Two extra rules
+### Three extra rules
 
 **Season rollover.** Every August, each club gets pulled 20% of the way back
 towards 1500 — because good teams sell players and bad teams buy them, and nobody
@@ -89,6 +89,11 @@ next season at 1683.
 
 **New clubs start at 1400.** Promoted sides, or anyone returning after years away
 where their old number is stale.
+
+**No crowd, no home bonus.** For the 452 matches played behind closed doors
+between June 2020 and May 2021 the 65-point bonus is set to zero, because home
+advantage did not shrink over that stretch — it disappeared. Home sides took
+0.5022 of the points, against 0.5738 everywhere else.
 
 ### Why it works
 
@@ -169,8 +174,8 @@ a match played after the one it was predicting.
 
 | Contender | What it knows | Accuracy | Log loss | AUC | Calibration |
 |---|---|---|---|---|---|
-| **`model`** | PLEA, plus both shot gaps | **69.3%** | **0.5830** | 0.732 | 0.0109 |
-| `plea_only` | one number: PLEA's expectation | 68.8% | 0.5855 | 0.729 | 0.0105 |
+| **`model`** | PLEA, plus both shot gaps | **69.3%** | **0.5821** | 0.734 | 0.0109 |
+| `plea_only` | one number: PLEA's expectation | 69.1% | 0.5843 | 0.730 | 0.0106 |
 | `home_or_away` | the home and away win rates | 61.8% | 0.6575 | 0.565 | 0.0245 |
 | `base_rate` | one number, the win rate | 61.8% | 0.6655 | 0.495 | 0.0132 |
 
@@ -181,9 +186,9 @@ away win still scores 62%.
 Compared match by match rather than on the averages:
 
 ```
-model          vs plea_only   +0.00252  +/- 0.00095    z = +2.66   REAL
-home_or_away   vs plea_only   -0.07191  +/- 0.00449    z = -16.00  REAL
-base_rate      vs plea_only   -0.07997  +/- 0.00477    z = -16.76  REAL
+model          vs plea_only   +0.00221  +/- 0.00092    z = +2.39   REAL
+home_or_away   vs plea_only   -0.07283  +/- 0.00447    z = -16.28  REAL
+base_rate      vs plea_only   -0.08117  +/- 0.00475    z = -17.10  REAL
 ```
 
 ### The one thing that worked: shots on target
@@ -217,8 +222,8 @@ The first version was a random forest reading all forty-two columns. Measured:
 
 | | Log loss |
 |---|---|
-| logistic regression, 3 columns | **0.5830** |
-| PLEA alone | 0.5855 |
+| logistic regression, 3 columns | **0.5821** |
+| PLEA alone | 0.5843 |
 | random forest, 42 columns | 0.5866 |
 | random forest, the same 3 columns | 0.5892 |
 
@@ -233,9 +238,9 @@ The whole model is now three numbers, which is the other thing a forest could
 never give you:
 
 ```
-elo_expected   0.7873    odds x2.20
-shots_gap      0.1321    odds x1.14
-sot_gap        0.0849    odds x1.09
+elo_expected   0.8070    odds x2.24
+shots_gap      0.1322    odds x1.14
+sot_gap        0.0811    odds x1.08
 ```
 
 ### Everything that did not work
@@ -257,6 +262,19 @@ to the raw one, because Premier League defences all concede between roughly 0.8
 and 2.0 a game and that spread is tiny next to the randomness in five matches.
 Swapping it in changed nothing (z = −0.07). Reverted.
 
+**PLEA's home advantage.** Carried for three sessions as the obvious next fix:
+the parameter is 65, and the home side's share of the points across 6,110
+matches directly implies 47.9. Swept properly against out-of-sample log loss,
+48 makes the model *worse* — z = −2.79 on the tuning seasons, −1.43 across all
+thirteen — and nothing beats 65 by a detectable margin.
+
+The 47.9 was answering a different question. `home_adv` is a knob inside a
+feedback loop rather than an estimate of a quantity: the ratings adapt around
+whatever it is set to, and the regression downstream re-fits its own intercept
+and slope on `elo_expected` anyway, so PLEA being internally biased costs
+nothing the model does not simply absorb. A number can be correct and still not
+be the number the parameter wants.
+
 ### How far from the ceiling?
 
 Bet365's closing odds, scored on the same 9,880 rows with the bookmaker's
@@ -266,7 +284,7 @@ set by people who know the team news.
 ```
 ignorance  0.6655 ──────────────────────────────────────► 0.5733  market
                   ├───────────────────────────────────┤
-                            the model covers 89%
+                            the model covers 90%
 ```
 
 The gap is not spread evenly. From November to March we are level with the
@@ -282,26 +300,32 @@ promises is close to what happens.
 
 | Predicted | Actually won |
 |---|---|
-| 9.8% | 10.3% |
-| 26.5% | 26.7% |
-| 45.4% | 43.6% |
-| 73.4% | 73.7% |
+| 9.8% | 10.5% |
+| 26.4% | 25.6% |
+| 45.5% | 43.8% |
+| 73.4% | 73.6% |
 
-Rejoining both perspectives gives the right verdict on **62.4% of 4,940
+Rejoining both perspectives gives the right verdict on **62.2% of 4,940
 matches**, and not one fixture had the home and away probabilities adding to
 more than 1 — the model never contradicted itself.
 
 ### Next
 
-Three things left, in order of how much they should move the number:
+Two ideas left, and after four straight negative results the honest prior is
+that neither will work either:
 
-1. **PLEA v2.** `home_adv` is set to 65 but measures ~47.9 in the data, and the
-   era breakdown is stark: 55 points (2010–16), 58 (2016–20), **−8 (2020/21)**,
-   43 (2021–26). The one remaining change with evidence already gathered.
-2. **Separate attack and defence ratings.** PLEA gives a club one number, so a
-   side that wins 4–3 every week and one that wins 1–0 look identical to it.
-3. **A better August.** Matchweeks 1–3 are the largest remaining hole, and
+1. **Separate attack and defence ratings.** PLEA gives a club one number, so a
+   side that wins 4–3 every week and one that wins 1–0 look identical to it —
+   despite being very different match-ups. This is the only remaining idea that
+   adds a genuinely new *kind* of information rather than re-encoding what the
+   rating already holds.
+2. **A better August.** Matchweeks 1–3 are the largest remaining hole, and
    PLEA's flat 20% pull toward 1500 each summer is a blunt instrument.
+
+Worth saying plainly: of six things tried, one worked. The reliable move has
+been to ask **what PLEA currently gets wrong** and check which columns line up
+with those mistakes — that question found shots on target, and it correctly
+predicted the failure of the other five before the effort was spent.
 
 ## Edge cases in the training table
 
