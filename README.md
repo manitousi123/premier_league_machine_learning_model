@@ -275,6 +275,38 @@ and slope on `elo_expected` anyway, so PLEA being internally biased costs
 nothing the model does not simply absorb. A number can be correct and still not
 be the number the parameter wants.
 
+**Attack and defence as separate ratings.** PLEA gives a club one number, so a
+side that wins 4-3 every week and one that wins 1-0 look identical to it. The
+fix is a different architecture entirely: two ratings per club, updated as an
+online Poisson regression, with the win probability coming off a scoreline grid
+rather than a sigmoid.
+
+```
+lambda_home = exp(base + atk_home - def_away + home_boost)
+lambda_away = exp(base + atk_away - def_home)
+```
+
+It works, in the sense that it produces sensible ratings — Manchester City the
+best attack, Arsenal the best defence — and on its own it matches PLEA almost
+exactly: 0.58453 against 0.58439, and the two agree on 0.97 of their
+predictions.
+
+That is the finding, rather than the disappointment around it. **Two
+architectures with nothing in common — Elo on results, Poisson on goals —
+arrive at the same answer.** When independent methods converge that tightly,
+what is left is not a better method.
+
+Added to the model it looked like a win on the tuning seasons, at z = +2.83,
+and evaporated to z = +0.32 on the seasons held back. Swept over learning rate
+and home boost and re-chosen on validation, the best setting still came out at
+**z = +0.28** across all thirteen. This is exactly what the held-out seasons
+exist to catch: on the tuning window alone it would have shipped.
+
+**Shots conceded.** The same idea in feature form — how many more shots a club
+gives up than its opponent does, which nothing in the model can otherwise see.
+Strong against the residuals (z = -3.71 for the combined matchup) and dead on
+arrival out of sample, worse than nothing on the tuning seasons.
+
 ### How far from the ceiling?
 
 Bet365's closing odds, scored on the same 9,880 rows with the bookmaker's
@@ -311,21 +343,28 @@ more than 1 — the model never contradicted itself.
 
 ### Next
 
-Two ideas left, and after four straight negative results the honest prior is
-that neither will work either:
+Seven ideas tried, one worked. That is not a run of bad luck — it is what the
+evidence has been saying for a while, and the attack/defence result is the
+clearest statement of it yet: a completely independent architecture, given a
+fair hearing and proper tuning, lands on the same number.
 
-1. **Separate attack and defence ratings.** PLEA gives a club one number, so a
-   side that wins 4–3 every week and one that wins 1–0 look identical to it —
-   despite being very different match-ups. This is the only remaining idea that
-   adds a genuinely new *kind* of information rather than re-encoding what the
-   rating already holds.
-2. **A better August.** Matchweeks 1–3 are the largest remaining hole, and
-   PLEA's flat 20% pull toward 1500 each summer is a blunt instrument.
+**The remaining gap to the market is mostly team news.** Who is rested, injured,
+or being saved for a cup final, known an hour before kickoff. It is why the
+deficit sits almost entirely in matchweeks 1–3 and 31–38 and vanishes in
+midwinter. No re-encoding of results will recover it, because it is not in the
+results.
 
-Worth saying plainly: of six things tried, one worked. The reliable move has
-been to ask **what PLEA currently gets wrong** and check which columns line up
-with those mistakes — that question found shots on target, and it correctly
-predicted the failure of the other five before the effort was spent.
+One idea is left that has not been tested:
+
+- **A better August.** Matchweeks 1–3 are the largest remaining hole. PLEA
+  pulls every club 20% toward 1500 each summer regardless of what actually
+  changed at the club, which is blunt but is at least aimed at the right gap.
+
+Beyond that, the honest options are to accept the ceiling or to find a source
+of team-sheet data. The method that has repaid the effort every time is the
+same one: ask **what the model currently gets wrong**, check which columns line
+up with those mistakes, and only then build. It found shots on target, and it
+correctly called six failures before the work was spent on them.
 
 ## Edge cases in the training table
 
