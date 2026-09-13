@@ -172,16 +172,55 @@ def verdicts(rows: pd.DataFrame, probability: pd.Series) -> pd.DataFrame:
         )
 
     merged["p_draw"] = 1.0 - merged["p_home"] - merged["p_away"]
-    merged["verdict"] = np.where(
-        merged["p_home"] >= 0.5,
-        "HOME will win",
-        np.where(merged["p_away"] >= 0.5, "AWAY will win", "no confident call"),
+
+    # The grid. Each fixture was scored twice and each answer is a yes or a no,
+    # so there are four ways the pair can land — not three. The fourth, both
+    # clubs backed to win the same match, is the model contradicting itself; it
+    # is kept as its own outcome rather than folded into "HOME will win",
+    # because a contradiction reported as a confident call is the worst of the
+    # four. It has never yet fired: 0 of 4,940 test matches.
+    home_backed = merged["p_home"] >= 0.5
+    away_backed = merged["p_away"] >= 0.5
+
+    merged["home_call"] = np.where(home_backed, "WILL win", "WILL NOT win")
+    merged["away_call"] = np.where(away_backed, "WILL win", "WILL NOT win")
+    merged["verdict"] = np.select(
+        [
+            home_backed & ~away_backed,
+            away_backed & ~home_backed,
+            home_backed & away_backed,
+        ],
+        ["HOME will win", "AWAY will win", "NO CALL - both sides backed"],
+        default="HOME will not win",
     )
+
     # How far the better-backed side is from a coin flip. Across thirteen test
     # seasons a call at 60% landed 69% of the time and one at 70% landed 77%,
     # so this is worth reading as a real strength rather than decoration.
     merged["confidence"] = merged[["p_home", "p_away"]].max(axis=1)
-    return merged.sort_values(["date", "kickoff"], kind="stable").reset_index(drop=True)
+
+    ordered = [
+        "date", "kickoff", "home_team", "away_team",
+        "p_home", "p_away", "p_draw",
+        "home_call", "away_call", "verdict", "confidence",
+    ]
+    return merged[ordered].sort_values(["date", "kickoff"], kind="stable").reset_index(drop=True)
+
+
+def grid(calls: pd.DataFrame) -> pd.DataFrame:
+    """The 2x2 itself: how many fixtures landed in each quadrant.
+
+    Rows are what the home club's own row concluded, columns what the away
+    club's did. Reading it as a table rather than four labels makes the
+    diagonal obvious — the two cells where the perspectives agree are the
+    confident calls, and the top-right is the one that should stay empty.
+    """
+    counts = pd.crosstab(calls["home_call"], calls["away_call"])
+    return counts.reindex(
+        index=["WILL win", "WILL NOT win"],
+        columns=["WILL NOT win", "WILL win"],
+        fill_value=0,
+    ).rename_axis(index="home", columns="away")
 
 
 def next_matchweek(

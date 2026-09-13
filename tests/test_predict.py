@@ -177,11 +177,43 @@ def _scored(p_home: float, p_away: float) -> pd.DataFrame:
     [
         (0.70, 0.15, "HOME will win"),
         (0.15, 0.70, "AWAY will win"),
-        (0.35, 0.30, "no confident call"),
+        (0.35, 0.30, "HOME will not win"),
+        # Both clubs backed to win the same match. Never seen in 4,940 test
+        # fixtures, but it must not be quietly reported as a home win.
+        (0.60, 0.55, "NO CALL - both sides backed"),
     ],
 )
 def test_the_verdict_follows_the_probabilities(p_home, p_away, expected):
     assert _scored(p_home, p_away).iloc[0]["verdict"] == expected
+
+
+@pytest.mark.parametrize(
+    ("p_home", "p_away", "home_call", "away_call"),
+    [
+        (0.70, 0.15, "WILL win", "WILL NOT win"),
+        (0.15, 0.70, "WILL NOT win", "WILL win"),
+        (0.35, 0.30, "WILL NOT win", "WILL NOT win"),
+        (0.60, 0.55, "WILL win", "WILL win"),
+    ],
+)
+def test_each_side_gets_its_own_answer(p_home, p_away, home_call, away_call):
+    """The grid needs both axes, not just the combined label."""
+    row = _scored(p_home, p_away).iloc[0]
+    assert row["home_call"] == home_call
+    assert row["away_call"] == away_call
+
+
+def test_the_grid_is_two_by_two_even_when_cells_are_empty():
+    grid = predict.grid(_scored(0.70, 0.15))
+    assert grid.shape == (2, 2)
+    assert grid.to_numpy().sum() == 1
+    assert grid.loc["WILL win", "WILL NOT win"] == 1
+    assert grid.loc["WILL win", "WILL win"] == 0
+
+
+def test_the_grid_counts_every_fixture():
+    calls = _scored(0.35, 0.30)
+    assert predict.grid(calls).to_numpy().sum() == len(calls)
 
 
 def test_the_three_outcomes_add_to_one():

@@ -34,15 +34,39 @@ have the tables and charts; `docs/model-workflow.html` explains how it fits toge
 ```
 10 FIXTURES - results current to Sun 06 Sep 2026
 
-  Sat 12 Sep  15:00            Chelsea  v  Hull City         HOME will win        63%
-  Sat 12 Sep  20:00         Sunderland  v  Arsenal           AWAY will win        59%
-  Sun 13 Sep  16:30  Manchester United  v  Manchester City   no confident call    36%
+  Sat 12 Sep  15:00            Chelsea  63%  v  16%  Hull City         HOME will win
+  Sat 12 Sep  20:00         Sunderland  18%  v  59%  Arsenal           AWAY will win
+  Sun 13 Sep  16:30  Manchester United  36%  v  35%  Manchester City   HOME will not win
 ```
 
-Confidence is the better-backed side's probability, and it means what it says:
-across the thirteen test seasons a call at 60% landed 69% of the time and one
-at 70% landed 77%. Roughly half of all matches come out as "no confident call",
-which is the model declining rather than failing — those fixtures are close.
+Every fixture is scored twice, once from each club's side, and each answer is a
+yes or a no — so the pair lands in one of four places, not three:
+
+```
+                     AWAY WILL NOT WIN                      AWAY WILL WIN
+                    +--------------------------------------+------------------------------+
+HOME WILL WIN       |HOME team WILL win  (3)               |NO CALL - both backed  (0)    |
+                    |  Chelsea      v Hull City    63%/16% |  none, as it should be       |
+                    |  Liverpool    v Fulham       61%/16% |                              |
+                    +--------------------------------------+------------------------------+
+HOME WILL NOT WIN   |HOME team WILL NOT win  (5)           |AWAY team WILL win  (2)       |
+                    |  Tottenham Ho v Everton      33%/38% |  Sunderland   v Arsenal 18%/59%
+                    |  Manchester U v Manchester C 36%/35% |  Coventry Cit v Brighton 19%/57%
+                    +--------------------------------------+------------------------------+
+```
+
+The top-right cell is the one to watch: both clubs backed to win the same
+match is the model contradicting itself, so it is kept as its own outcome
+rather than folded into a home win. It has never fired — 0 of 4,940 test
+fixtures — but a contradiction reported as a confident call would be the worst
+of the four.
+
+The bottom-left is not a draw prediction. Draws are 27% there against 23%
+overall, which is barely above chance. It means neither side is backed, and
+that is roughly half of all matches — the model declining rather than failing.
+
+Confidence means what it says: across the thirteen test seasons a call at 60%
+landed 69% of the time and one at 70% landed 77%.
 
 Re-run `build_dataset.py` after each matchweek so the ratings and form are
 current, then `predict_matchweek.py`.
