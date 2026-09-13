@@ -17,7 +17,7 @@ import sys
 
 import pandas as pd
 
-from plfootball import config, ingest, model, plea, predict
+from plfootball import config, ingest, model, plea, predict, track
 
 CELL = 38  # characters per quadrant - wide enough for the longest fixture line
 
@@ -87,6 +87,11 @@ def main() -> int:
     history = plea.run(results)
     table = pd.read_parquet(path)
 
+    # Settle first. Last week's calls were made before those matches; now that
+    # the results are in, they get their answer - and the record only means
+    # anything if that happens before this week's calls are added to it.
+    track.settle(results)
+
     try:
         calls = predict.next_matchweek(results, history, table=table)
     except predict.NoFixtures as exc:
@@ -129,8 +134,38 @@ def main() -> int:
     print(model.coefficients(model.fit(table)).round(4).to_string(index=False))
 
     if args.no_save:
-        print("\n--no-save: nothing written")
+        print("\n--no-save: nothing recorded")
         return 0
+
+    # Committed to the log before anything is reported, so what follows is
+    # read back from the record rather than from the variable in hand.
+    ahead = track.still_to_come(calls)
+    if not ahead.all():
+        print()
+        print(f"  {(~ahead).sum()} fixture(s) had already kicked off and are not being")
+        print("  logged - the fixture list runs ahead of the results file.")
+    track.record(
+        calls,
+        results_current_to=latest,
+        model_version=model.DEFAULT.version,
+        plea_version=plea.DEFAULT.version,
+    )
+
+    _rule("THE RECORD SO FAR")
+    facts = track.summary()
+    if not facts.get("settled"):
+        print(f"  {facts['logged']} prediction(s) logged, none settled yet.")
+        print("  Come back after these matches have been played.")
+    else:
+        print(f"  {facts['settled']} settled, {facts['awaiting_result']} awaiting a result")
+        print(f"  verdict right on {facts['verdict_accuracy']:.1%} "
+              f"(the backtest said {facts['backtest_verdict_accuracy']:.1%})")
+        print(f"  log loss {facts['log_loss']:.4f} "
+              f"(the backtest said {facts['backtest_log_loss']:.4f})")
+        print()
+        record = track.track_record()
+        print(record.assign(hit_rate=record["hit_rate"].map(
+            lambda v: "-" if pd.isna(v) else f"{v:.0%}")).to_string(index=False))
 
     out = config.PROCESSED / "predictions.csv"
     # Four decimals is already far more precision than a football forecast has.
@@ -138,7 +173,8 @@ def main() -> int:
     numbers = ["p_home", "p_away", "p_draw", "confidence"]
     rounded[numbers] = rounded[numbers].round(4)
     rounded.to_csv(out, index=False)
-    print(f"\nwritten to {out.relative_to(config.ROOT)}")
+    print(f"\nthis week  -> {out.relative_to(config.ROOT)}")
+    print(f"the record -> {track.LOG_PATH.relative_to(config.ROOT)}")
     return 0
 
 

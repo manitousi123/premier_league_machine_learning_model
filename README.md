@@ -91,6 +91,50 @@ demanding they match what the training table holds for the same matches. Not
 close: identical. Shifting the form window by one match, or the home bonus by
 seventeen points, makes it fail.
 
+## The prediction log
+
+`data/predictions/log.csv` is the only file this project writes that cannot be
+rebuilt. Everything else under `data/` regenerates from the raw results; a
+record of what was said *before* a match was played does not, which is why it
+is the one data file kept in git.
+
+It exists because the backtest is a claim, not a verdict. The walk-forward says
+the model should get 62% of calls right and score 0.5821 — whether it actually
+does, week after week, on fixtures nobody had seen when the code was written,
+is a different question. Only this file can answer it.
+
+`predict_matchweek.py` maintains it: settle last week's calls against the
+results that have since come in, then record this week's. The track record
+splits by confidence band, because the whole claim being tested is that the
+model's confidence means something:
+
+```
+          band  predictions  correct  hit_rate
+neither backed           17        9       53%
+        50-55%            3        0        0%
+        55-60%            5        5      100%
+        60-70%            4        3       75%
+          70%+            2        1       50%
+```
+
+### Two ways to keep it honest
+
+**A prediction cannot appear after the match.** The fixture list runs a few
+days ahead of the results file, so a Sunday run will happily offer a call on
+Saturday's matches — the model has not seen those results, nothing leaks, and
+the call is genuinely blind. It is still not a forecast, and a record that
+counts it as one is measuring something easier than the thing it claims to
+measure. Those fixtures are dropped, and the run says how many. Same-day is
+allowed: kickoffs run to the evening and the log works in whole days.
+
+**Settling cannot revise history.** A row that already has an outcome is never
+touched again, so re-running after a data correction cannot quietly improve
+last month.
+
+Re-predicting a fixture that has *not* been played replaces the earlier call
+rather than adding a second — Thursday's call with fresher form is a better
+answer to the same question, not a new question.
+
 ## PLEA in plain English
 
 PLEA is the Premier League Elo Algorithm — the rating half of the project.

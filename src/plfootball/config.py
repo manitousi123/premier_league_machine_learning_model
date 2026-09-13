@@ -18,11 +18,15 @@ DATA = ROOT / "data"
 RAW = DATA / "raw"  # exactly as downloaded, never hand-edited
 PROCESSED = DATA / "processed"  # cleaned, feature-engineered
 BENCHMARK = DATA / "benchmark"  # frozen eval set, committed to git
+# The prediction log is the one thing here that cannot be rebuilt. Every
+# other file under data/ can be regenerated from the raw results; a record of
+# what we said before a match was played cannot be. It is tracked in git.
+PREDICTIONS = DATA / "predictions"
 
 MODELS = ROOT / "models"
 EXPERIMENTS = ROOT / "experiments" / "runs"
 
-for _d in (RAW, PROCESSED, BENCHMARK, MODELS, EXPERIMENTS):
+for _d in (RAW, PROCESSED, BENCHMARK, PREDICTIONS, MODELS, EXPERIMENTS):
     _d.mkdir(parents=True, exist_ok=True)
 
 
