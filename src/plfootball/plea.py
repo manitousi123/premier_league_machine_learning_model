@@ -184,6 +184,42 @@ def run(results: pd.DataFrame, params: PleaParams = DEFAULT) -> pd.DataFrame:
     return history.sort_values(["date", "team"], kind="stable").reset_index(drop=True)
 
 
+def ratings_entering(
+    history: pd.DataFrame, season: int, clubs, params: PleaParams = DEFAULT
+) -> dict[str, float]:
+    """The rating each club carries into a match in `season`.
+
+    Three cases, and they are the same three `_season_start_ratings` handles -
+    which is why this lives next to it rather than in the predictor. A club
+    that has already played in `season` carries whatever its last match left
+    it on. A club whose most recent season was the one before gets the summer
+    pull back towards average. Anyone else is new or has been away long enough
+    that its old number is stale, and starts on `promoted_elo`.
+    """
+    if history.empty:
+        return dict.fromkeys(clubs, params.start_elo)
+
+    latest = (
+        history.sort_values(["date"], kind="stable")
+        .groupby("team")
+        .agg(elo=("elo_after", "last"), season=("season", "last"))
+    )
+
+    ratings = {}
+    for club in clubs:
+        if club not in latest.index:
+            ratings[club] = params.promoted_elo
+            continue
+        elo, last_season = latest.loc[club, "elo"], latest.loc[club, "season"]
+        if last_season == season:
+            ratings[club] = float(elo)
+        elif last_season == season - 1:
+            ratings[club] = params.start_elo + params.carry_over * (elo - params.start_elo)
+        else:
+            ratings[club] = params.promoted_elo
+    return ratings
+
+
 def ratings_as_of(history: pd.DataFrame, when=None, *, active_only: bool = True) -> pd.DataFrame:
     """The rating table as it stood on a given date.
 

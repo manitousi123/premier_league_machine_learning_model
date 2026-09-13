@@ -93,6 +93,35 @@ def _to_long(results: pd.DataFrame) -> pd.DataFrame:
     return long.sort_values(["date", "team"], kind="stable").reset_index(drop=True)
 
 
+def recent_form(results: pd.DataFrame, window: int = config.FORM_WINDOW) -> pd.DataFrame:
+    """Each club's rolling form as it stands *after* its most recent match.
+
+    These are exactly the numbers `_add_form` would put on that club's next
+    row, which is the point: a fixture that has not been played yet needs its
+    form computed the same way the training rows were, or the model is being
+    shown numbers that mean something slightly different from what it learned
+    on. Sharing `_to_long` and the window definition is what guarantees that.
+
+    `.tail(window)` over a club's matches in date order is the same set the
+    shifted rolling window would see from the following match - all of them if
+    the club has played fewer than `window`, which mirrors `min_periods=1`. A
+    club with no matches at all does not appear here; the caller fills it from
+    `config.LEAGUE_AVERAGE_FORM`.
+    """
+    long = _to_long(results).sort_values(["team", "date"], kind="stable")
+    long["points_share"] = np.select(
+        [long["gf"] > long["ga"], long["gf"] == long["ga"]], [1.0, 0.5], default=0.0
+    )
+
+    recent = long.groupby("team", sort=False).tail(window)
+    form = recent.groupby("team").agg(
+        **{dst: (src, "mean") for src, dst in _FORM_METRICS.items()},
+        form_window=("date", "size"),
+        last_match=("date", "max"),
+    )
+    return form.reset_index()
+
+
 def _merge_history(long: pd.DataFrame, history: pd.DataFrame) -> pd.DataFrame:
     """Attach PLEA's ratings and result for each row - the pieces we don't recompute."""
     hist = history[[

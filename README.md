@@ -17,16 +17,55 @@ there — see [What the backtest found](#what-the-backtest-found).
 
 ```bash
 pip install -e ".[dev]"
-python scripts/build_dataset.py
-python scripts/train_model.py
+python scripts/build_dataset.py       # download, check, build the ratings and the table
+python scripts/train_model.py         # grade the model on seasons it never saw
+python scripts/predict_matchweek.py   # call every fixture in the coming week
 ```
 
-The first script downloads the results, checks them, and builds the ratings and
-the training table. The second grades the model against three baselines on
-seasons it was never trained on, then trains the one that gets kept.
+The first downloads the results, checks them, and builds the ratings and the
+training table. The second grades the model against three baselines on seasons
+it was never trained on. The third is the one you actually use.
 
 `notebooks/plea_ratings.ipynb` and `notebooks/feature_table.ipynb`
 have the tables and charts; `docs/model-workflow.html` explains how it fits together.
+
+## Predicting the next matchweek
+
+```
+10 FIXTURES - results current to Sun 06 Sep 2026
+
+  Sat 12 Sep  15:00            Chelsea  v  Hull City         HOME will win        63%
+  Sat 12 Sep  20:00         Sunderland  v  Arsenal           AWAY will win        59%
+  Sun 13 Sep  16:30  Manchester United  v  Manchester City   no confident call    36%
+```
+
+Confidence is the better-backed side's probability, and it means what it says:
+across the thirteen test seasons a call at 60% landed 69% of the time and one
+at 70% landed 77%. Roughly half of all matches come out as "no confident call",
+which is the model declining rather than failing — those fixtures are close.
+
+Re-run `build_dataset.py` after each matchweek so the ratings and form are
+current, then `predict_matchweek.py`.
+
+### The part that could break silently
+
+Everything else in this project scores matches that already happened, where the
+row was built from a completed result. A fixture on Saturday has no such row,
+so one has to be constructed — and if it is assembled even slightly differently
+from a training row, the model is shown numbers that do not mean what it
+learned they meant. Nothing errors. The predictions are just quietly worse.
+
+So the two quantities that matter are not recomputed in the predictor.
+`form_sot` and `form_shots` come from `features.recent_form`, which shares the
+long-form conversion and the window definition with the training path, and the
+ratings come from `plea.ratings_entering`, which mirrors PLEA's own season
+rollover.
+
+The test that guards this replays real matchweeks as though they had not
+happened — hiding everything from that day onward, rebuilding the rows, and
+demanding they match what the training table holds for the same matches. Not
+close: identical. Shifting the form window by one match, or the home bonus by
+seventeen points, makes it fail.
 
 ## PLEA in plain English
 

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
+
 # --- paths ---------------------------------------------------------------
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -93,6 +95,17 @@ NO_CROWD_END = "2021-05-16"
 def season_label(end_year: int) -> str:
     """2011 -> '2010/11'."""
     return f"{end_year - 1}/{str(end_year)[2:]}"
+
+
+def season_of(date) -> int:
+    """Which season a date falls in, named by the year it ends in.
+
+    The league year turns over in the summer, so anything from July onwards
+    belongs to the season ending the following year: 2 Aug 2026 is 2026/27,
+    and so is 2 May 2027.
+    """
+    date = pd.Timestamp(date)
+    return date.year + 1 if date.month >= 7 else date.year
 
 
 # --- known baselines -----------------------------------------------------
