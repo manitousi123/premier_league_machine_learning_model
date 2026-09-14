@@ -298,10 +298,11 @@ function logTable(rec) {
   state.weekIdx = Math.min(state.weekIdx, season.weeks.length - 1);
   const wk = season.weeks[state.weekIdx];
   const summary = [
-    `${wk.correct} correct`, `${wk.wrong} wrong`,
+    wk.confident.called ? `confident ${wk.confident.correct} of ${wk.confident.called}` : null,
+    wk.weak.called ? `weak ${wk.weak.correct} of ${wk.weak.called}` : null,
     wk.awaiting ? `${wk.awaiting} awaiting` : null,
     wk.unscored ? `${wk.unscored} unscored` : null,
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(' · ') || 'nothing settled';
 
   const rows = wk.rows.map((r) => {
     const weak = r.verdict === 'HOME will not win' || r.verdict === 'NO CALL - both sides backed';
@@ -354,7 +355,9 @@ function renderRecord() {
   const rec = state.data.record;
   const bt = rec.backtest;
 
-  const neither = rec.settled ? `${Math.round((rec.neither_backed / rec.settled) * 100)}%` : '—';
+  const c = rec.confident;
+  const w = rec.weak;
+  const btRate = (part) => pct(bt && bt[part] ? bt[part].hit_rate : null);
   const calib = rec.calibration_error;
   const calibSub = calib == null ? 'mean pts actual − stated'
     : `mean pts actual − stated (${calib > 0 ? 'under-claiming' : calib < 0 ? 'over-claiming' : 'spot on'})`;
@@ -374,10 +377,12 @@ function renderRecord() {
 
   return `
     <div class="stats record">
-      ${stat('VERDICT CORRECT', pct(rec.verdict_accuracy), rec.called
-    ? `of ${rec.called} scored claims · backtest ${pct(bt ? bt.verdict_accuracy : null)}`
-    : 'nothing settled yet')}
-      ${stat('NEITHER SIDE BACKED', neither, `${rec.neither_backed} of ${rec.settled} settled · scored as "home won't win"`)}
+      ${stat('CONFIDENT CALLS CORRECT', pct(c.hit_rate), c.called
+    ? `${c.correct} of ${c.called} · one side backed · backtest ${btRate('confident')}`
+    : `nothing settled yet · backtest ${btRate('confident')}`)}
+      ${stat('WEAK CLAIMS CORRECT', pct(w.hit_rate), w.called
+    ? `${w.correct} of ${w.called} · "home won't win" · backtest ${btRate('weak')}`
+    : `nothing settled yet · backtest ${btRate('weak')}`)}
       ${stat('CALIBRATION ERROR', calib == null ? '—' : signed(calib), calibSub)}
       ${stat('CONTRADICTIONS', rec.contradictions, contraSub)}
     </div>

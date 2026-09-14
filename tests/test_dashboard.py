@@ -353,6 +353,35 @@ def test_log_rows_say_how_each_was_scored(tmp_path):
     assert by_home["Manchester United"]["result"] == ""
 
 
+def test_confident_calls_and_weak_claims_are_scored_separately(tmp_path):
+    """A backed side and "home won't win" are different bets. One figure
+    mixing them would hide that the weak claim is the one that holds more."""
+    path = tmp_path / "log.csv"
+    _record(WEEK, path)
+    _settle([
+        ("2026-09-12", "Chelsea", "Hull City", 2, 0),                 # confident, right
+        ("2026-09-12", "Sunderland", "Arsenal", 1, 1),                # confident, wrong
+        ("2026-09-13", "Manchester United", "Manchester City", 0, 0),  # weak, right
+    ], path)
+    rec = dashboard.record(track.load(path), dashboard.backtest_calls(_backtest()))
+
+    assert rec["confident"] == {"called": 2, "correct": 1, "hit_rate": 50}
+    assert rec["weak"] == {"called": 1, "correct": 1, "hit_rate": 100}
+    assert rec["backtest"]["confident"] == {"called": 2, "correct": 1, "hit_rate": 50}
+    assert rec["backtest"]["weak"] == {"called": 1, "correct": 1, "hit_rate": 100}
+
+    week = rec["seasons"][0]["weeks"][0]
+    assert week["confident"] == {"called": 2, "correct": 1}
+    assert week["weak"] == {"called": 1, "correct": 1}
+    assert week["awaiting"] == 1
+
+
+def test_the_split_is_empty_but_present_before_anything_settles(tmp_path):
+    rec = dashboard.record(track.load(tmp_path / "log.csv"))
+    assert rec["confident"] == {"called": 0, "correct": 0, "hit_rate": None}
+    assert rec["weak"] == {"called": 0, "correct": 0, "hit_rate": None}
+
+
 # --- the model -----------------------------------------------------------
 
 

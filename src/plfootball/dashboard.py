@@ -388,6 +388,35 @@ def _round_lookup(season_fixtures: pd.DataFrame | None) -> dict:
     }
 
 
+CONFIDENT = ("HOME will win", "AWAY will win")
+
+
+def _tally(rows: list[dict]) -> dict:
+    """How many of these rows have been scored, and how many held."""
+    settled = [r for r in rows if r["scored"] in ("correct", "wrong")]
+    return {"called": len(settled), "correct": sum(r["scored"] == "correct" for r in settled)}
+
+
+def _split(scored: pd.DataFrame) -> dict:
+    """The two kinds of claim, scored separately.
+
+    A backed side is the confident call; "HOME will not win" is the weak one.
+    They are different bets - the weak claim is a double chance and pays
+    accordingly - so one accuracy figure mixing them says little about either.
+    """
+    held = scored[scored["correct"].notna()]
+
+    def part(block: pd.DataFrame) -> dict:
+        n = len(block)
+        right = int(block["correct"].map(_as_bool).sum()) if n else 0
+        return {"called": n, "correct": right, "hit_rate": _pct(right / n) if n else None}
+
+    return {
+        "confident": part(held[held["verdict"].isin(CONFIDENT)]),
+        "weak": part(held[held["verdict"] == "HOME will not win"]),
+    }
+
+
 def weeks(log: pd.DataFrame, season_fixtures: pd.DataFrame | None = None) -> list[dict]:
     """The log broken into matchweeks, grouped by season, newest first.
 
@@ -430,6 +459,8 @@ def weeks(log: pd.DataFrame, season_fixtures: pd.DataFrame | None = None) -> lis
                 "wrong": scored.count("wrong"),
                 "awaiting": scored.count("awaiting"),
                 "unscored": scored.count("unscored"),
+                "confident": _tally([r for r in rows if r["verdict"] in CONFIDENT]),
+                "weak": _tally([r for r in rows if r["verdict"] == "HOME will not win"]),
                 "rows": rows,
             })
         seasons.append({"label": config.season_label(int(season)), "weeks": out[::-1]})
@@ -461,6 +492,7 @@ def record(
         "neither_backed": int((done["verdict"] == "HOME will not win").sum()),
         "contradictions": int((log["verdict"] == "NO CALL - both sides backed").sum()),
         "calibration_error": None,
+        **_split(done),
         "bands": [],
         "seasons": weeks(log, season_fixtures),
         "backtest": None,
@@ -482,6 +514,7 @@ def record(
             "fixtures": len(backtest_scored),
             "verdict_accuracy": _pct_or_none(held.mean()) if len(held) else None,
             "log_loss": facts.get("backtest_log_loss"),
+            **_split(backtest_scored),
             "contradictions": int(
                 (backtest_scored["verdict"] == "NO CALL - both sides backed").sum()
             ),
