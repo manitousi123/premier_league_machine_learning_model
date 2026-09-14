@@ -1,4 +1,4 @@
 predicted_at,results_current_to,date,home_team,away_team,kickoff,p_home,p_away,p_draw,home_call,away_call,verdict,confidence,model_version,plea_version,home_goals,away_goals,outcome,correct,settled_at
 2026-09-13 10:41:00,2026-09-06 00:00:00,2026-09-13,Coventry City,Brighton and Hove Albion,14:00,0.189,0.5694,0.2416,WILL NOT win,WILL win,AWAY will win,0.5694,v2,v2,,,,,
 2026-09-13 10:41:00,2026-09-06 00:00:00,2026-09-13,Manchester United,Manchester City,16:30,0.3631,0.3508,0.286,WILL NOT win,WILL NOT win,HOME will not win,0.3631,v2,v2,,,,,
-2026-09-14 09:59:11,2026-09-06 00:00:00,2026-09-14,Leeds United,Newcastle United,20:00,0.4008,0.3153,0.2838,WILL NOT win,WILL NOT win,HOME will not win,0.4008,v2,v2,,,,,
+2026-09-14 11:24:26,2026-09-06 00:00:00,2026-09-14,Leeds United,Newcastle United,20:00,0.4008,0.3153,0.2838,WILL NOT win,WILL NOT win,HOME will not win,0.4008,v2,v2,,,,,
