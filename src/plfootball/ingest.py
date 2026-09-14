@@ -72,10 +72,38 @@ def _looks_like_results_csv(content: bytes) -> bool:
     return b"hometeam" in content[:400].lower() and not head.startswith(b"<!doctype")
 
 
-def download_season(end_year: int, *, force: bool = False) -> bool:
-    """Download one season's raw CSV. Returns True if it hit the network."""
+def is_complete(end_year: int) -> bool:
+    """Does the file on disk hold the whole season?
+
+    A finished season never changes, so its copy can be trusted forever. A
+    season still being played gains ten matches a week, and the copy on disk is
+    stale the moment the next round kicks off.
+    """
     path = raw_path(end_year)
-    if path.exists() and not force:
+    if not path.exists():
+        return False
+    try:
+        raw = pd.read_csv(path, encoding="utf-8-sig", on_bad_lines="skip")
+    except (pd.errors.ParserError, UnicodeDecodeError, OSError):
+        return False  # unreadable is not complete - fetch it again
+    if "FTHG" not in raw.columns:
+        return False
+    played = pd.to_numeric(raw["FTHG"], errors="coerce").notna().sum()
+    return int(played) >= config.SEASON_FIXTURES
+
+
+def download_season(end_year: int, *, force: bool = False) -> bool:
+    """Download one season's raw CSV. Returns True if it hit the network.
+
+    A cached file is reused only when it holds a finished season. The season in
+    progress is fetched every time. Skipping it looks harmless - the file is
+    there, the pipeline runs, nothing errors - but the results behind last
+    week's fixtures never arrive, so those predictions never settle and the
+    same matchweek is offered again. That silence is the failure mode this
+    project exists to avoid.
+    """
+    path = raw_path(end_year)
+    if path.exists() and not force and is_complete(end_year):
         return False
 
     url = BASE_URL.format(code=season_code(end_year))
