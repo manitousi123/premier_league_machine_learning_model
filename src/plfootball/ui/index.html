@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premier League Match Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+  <div class="top">
+    <div class="wrap masthead">
+      <div>
+        <div class="title">Premier League Match Predictor</div>
+        <div class="subtitle">LOCAL BUILD · ELO + SHOTS MODEL</div>
+      </div>
+      <div class="fresh-col">
+        <div class="fresh">
+          <div class="dot" id="fresh-dot"></div>
+          <div>
+            <div class="eyebrow">RESULTS CURRENT TO</div>
+            <div class="fresh-date" id="fresh-date">—</div>
+          </div>
+          <div class="fresh-age" id="fresh-age"></div>
+          <button class="btn" id="refresh" type="button">REFRESH</button>
+        </div>
+        <div class="notice" id="notice" hidden></div>
+      </div>
+    </div>
+    <div class="wrap tabs">
+      <button class="tab active" type="button" data-tab="week">This week</button>
+      <button class="tab" type="button" data-tab="record">Track record</button>
+      <button class="tab" type="button" data-tab="model">Model &amp; ratings</button>
+    </div>
+  </div>
+
+  <div class="wrap panel" id="panel">
+    <p class="foot">Loading…</p>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

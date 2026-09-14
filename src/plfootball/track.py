@@ -176,7 +176,7 @@ def record(
     return combined.sort_values(KEY, kind="stable").reset_index(drop=True)
 
 
-def _verdict_held(verdict: pd.Series, outcome: pd.Series) -> pd.Series:
+def verdict_held(verdict: pd.Series, outcome: pd.Series) -> pd.Series:
     """Did the call turn out right?
 
     A contradiction claims nothing, so it is neither right nor wrong — left as
@@ -229,7 +229,7 @@ def settle(results: pd.DataFrame, path: Path | None = None, now=None) -> pd.Data
         merged.loc[newly, "home_goals"] = home_goals
         merged.loc[newly, "away_goals"] = away_goals
         merged.loc[newly, "outcome"] = outcome
-        merged.loc[newly, "correct"] = _verdict_held(
+        merged.loc[newly, "correct"] = verdict_held(
             merged.loc[newly, "verdict"], pd.Series(outcome, index=home_goals.index)
         )
         merged.loc[newly, "settled_at"] = now

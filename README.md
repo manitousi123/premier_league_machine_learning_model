@@ -20,14 +20,66 @@ pip install -e ".[dev]"
 python scripts/build_dataset.py       # download, check, build the ratings and the table
 python scripts/train_model.py         # grade the model on seasons it never saw
 python scripts/predict_matchweek.py   # call every fixture in the coming week
+python scripts/serve.py               # the same thing as a local web page
 ```
 
 The first downloads the results, checks them, and builds the ratings and the
 training table. The second grades the model against three baselines on seasons
-it was never trained on. The third is the one you actually use.
+it was never trained on. The third is the one you actually use, and the fourth
+puts it on a page at <http://127.0.0.1:8765> — see [The web app](#the-web-app).
 
 `notebooks/plea_ratings.ipynb` and `notebooks/feature_table.ipynb`
 have the tables and charts; `docs/model-workflow.html` explains how it fits together.
+
+## The web app
+
+```bash
+python scripts/serve.py --open
+```
+
+One page, three tabs, one button. Nothing on it is computed in the browser:
+every number comes from `plfootball/dashboard.py`, which has a test for each
+one, and the page only formats what it is given.
+
+**This week** is the card `predict_matchweek.py` produced: every fixture with
+both probabilities, the committed calls first, the close ones below. Each call
+carries the backtest's hit rate for calls of that strength, so a 63% call sits
+next to how often 60–70% calls have actually landed. Each fixture also says
+whether it is on the record — the ones that had kicked off before the run were
+not logged, and the page says so rather than hiding them.
+
+**Track record** is the log read back: verdict accuracy, the calibration by
+confidence band (what the model claimed against what happened, with the
+backtest's figure beside each band), and every prediction week by week. The
+live log is small for a long time, and a number with nothing to read it
+against is just a number, so the backtest is always shown alongside.
+
+**Model & ratings** is the 2×2 grid with this week's counts, the three
+coefficients, and the current Elo table with each club's movement over the
+last seven days of results.
+
+**RESULTS CURRENT TO** is the most important thing on the page. Stale ratings
+are the failure that does not announce itself. The dot goes amber not when the
+data is old but when a fixture has kicked off since the last result arrived —
+a fortnight with no football is not stale. **REFRESH** runs
+`build_dataset.py` and `predict_matchweek.py` as subprocesses, the same code
+path as the command line, and reports what changed.
+
+### Matchweeks ahead
+
+The arrows on the first tab page through the rounds still to be played. Each
+one is built by the same code as the logged calls, on today's ratings and
+form, and is labelled `preview · not logged`. Nothing is written down until a
+round becomes the next one and the refresh logs it.
+
+Two fixture sources are involved, and they are kept apart on purpose.
+football-data.co.uk's fixture list covers only the next few days, but it is
+the same publisher as the results, so a fixture's date there is the date its
+result will arrive under — and settling matches on date. That is the list the
+log is fed from. The whole-season list, with a round number against every
+match, comes from fixturedownload.com. It is a third party, so it is used for
+previews and labels only; its scores are ignored entirely, and "played" is
+always judged against our own results file.
 
 ## Predicting the next matchweek
 
